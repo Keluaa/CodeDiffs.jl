@@ -1,14 +1,14 @@
-using CodeDifferences
+using CodeDiffs
 using Documenter
 
-DocMeta.setdocmeta!(CodeDifferences, :DocTestSetup, :(using CodeDifferences); recursive=true)
+DocMeta.setdocmeta!(CodeDiffs, :DocTestSetup, :(using CodeDiffs); recursive=true)
 
 makedocs(;
-    modules=[CodeDifferences],
+    modules=[CodeDiffs],
     authors="Luc Briand <34173752+Keluaa@users.noreply.github.com> and contributors",
-    sitename="CodeDifferences.jl",
+    sitename="CodeDiffs.jl",
     format=Documenter.HTML(;
-        canonical="https://Keluaa.github.io/CodeDifferences.jl",
+        canonical="https://Keluaa.github.io/CodeDiffs.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/Keluaa/CodeDifferences.jl",
+    repo="github.com/Keluaa/CodeDiffs.jl",
     devbranch="main",
 )

@@ -1,14 +1,34 @@
-name = "CodeDifferences"
+name = "CodeDiffs"
 uuid = "0d84036a-ccd8-408b-b2b2-9a2d9429e273"
 authors = ["Luc Briand <34173752+Keluaa@users.noreply.github.com> and contributors"]
 version = "1.0.0-DEV"
 
+[deps]
+DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
+StringDistances = "88034a9c-02f8-509d-84a9-84ec65e18404"
+WidthLimitedIO = "b8c1c048-cf81-46c6-9da0-18c1d99e41f2"
+
 [compat]
+Aqua = "0.7"
+DeepDiffs = "1"
+InteractiveUtils = "1"
+MacroTools = "0.5"
+Markdown = "1"
+ReferenceTests = "0.10"
+StringDistances = "0.11"
+Test = "1"
+WidthLimitedIO = "1"
 julia = "1.6"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+ReferenceTests = "324d217c-45ce-50fc-942e-d289b448e8cf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "Test"]
+test = ["Aqua", "InteractiveUtils", "ReferenceTests", "Test"]

@@ -70,6 +70,6 @@ jobs:
         shell: julia --project=docs --color=yes {0}
         run: |
           using Documenter: DocMeta, doctest
-          using CodeDifferences
-          DocMeta.setdocmeta!(CodeDifferences, :DocTestSetup, :(using CodeDifferences); recursive=true)
-          doctest(CodeDifferences)
+          using CodeDiffs
+          DocMeta.setdocmeta!(CodeDiffs, :DocTestSetup, :(using CodeDiffs); recursive=true)
+          doctest(CodeDiffs)

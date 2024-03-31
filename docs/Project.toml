@@ -1,3 +1,6 @@
 [deps]
-CodeDifferences = "0d84036a-ccd8-408b-b2b2-9a2d9429e273"
+CodeDiffs = "0d84036a-ccd8-408b-b2b2-9a2d9429e273"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[compat]
+Documenter = "1"
