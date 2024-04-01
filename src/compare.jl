@@ -60,11 +60,7 @@ function replace_llvm_module_name(code::AbstractString, function_name)
         # See 'get_function_name' in 'julia/src/codegen.cpp'
         function_name = function_name[2:end]
     end
-    if v"1.7-" ≤ VERSION 
-        func_re = Regex("(?>julia|japi3|japi1)_\\Q$(function_name)\\E_(\\d+)")
-    else
-        func_re = Regex("(?>julia|japi3|japi1)_$(function_name)_(\\d+)")
-    end
+    func_re = Regex("(?>julia|japi3|japi1)_\\Q$(function_name)\\E_(\\d+)")
     return replace(code, func_re => function_name)
 end
 
