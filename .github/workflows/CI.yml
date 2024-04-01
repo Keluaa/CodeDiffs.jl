@@ -24,7 +24,7 @@ jobs:
       matrix:
         version:
           - '1.10'
-          - '1.6'
+          - '1.7'
           - 'nightly'
         os:
           - ubuntu-latest
@@ -40,12 +40,18 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v4
         with:
           files: lcov.info
   docs:
     name: Documentation
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
     permissions:
       actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
       contents: write
@@ -55,6 +61,7 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
+          arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v1
       - name: Configure doc environment
         shell: julia --project=docs --color=yes {0}

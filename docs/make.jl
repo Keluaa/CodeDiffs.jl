@@ -3,6 +3,8 @@ using Documenter
 
 DocMeta.setdocmeta!(CodeDiffs, :DocTestSetup, :(using CodeDiffs); recursive=true)
 
+can_doctest = Sys.islinux() && Sys.ARCH === :x86_84
+
 makedocs(;
     modules=[CodeDiffs],
     authors="Luc Briand <34173752+Keluaa@users.noreply.github.com> and contributors",
@@ -15,6 +17,7 @@ makedocs(;
     pages=[
         "Home" => "index.md",
     ],
+    doctest = can_doctest
 )
 
 deploydocs(;

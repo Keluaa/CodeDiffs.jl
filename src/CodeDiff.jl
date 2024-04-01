@@ -18,8 +18,8 @@ Fancy REPL output is done with [`side_by_side_diff`](@ref).
 struct CodeDiff <: DeepDiffs.DeepDiff
     before::String
     after::String
-    changed::Dict{Int, DeepDiffs.StringDiff}
-    ignore_added::Set{Int}
+    changed::Dict{Int, Tuple{Vector{Int}, DeepDiffs.StringDiff}}  # line idx => (line idxs added before the change, change diff)
+    ignore_added::Set{Int}  # Line idxs which are part of `changed`, including line idxs added before changes
     diff::DeepDiffs.VectorDiff
     highlighted_before::String
     highlighted_after::String
@@ -58,11 +58,17 @@ Base.show(io::IO, ::MIME"text/plain", diff::CodeDiff) = side_by_side_diff(io, di
 function Base.show(io::IO, diff::CodeDiff)
     xlines = split(diff.before, '\n')
     ylines = split(diff.after, '\n')
-    DeepDiffs.visitall(diff.diff) do idx, state, last
-        if state == :removed
+    DeepDiffs.visitall(diff) do idx, state, last
+        if state === :removed
             printstyled(io, "- ", xlines[idx], color=:red)
-        elseif state == :added
+        elseif state === :added
             printstyled(io, "+ ", ylines[idx], color=:green)
+        elseif state === :changed
+            printstyled(io, "~ ", color=:yellow)
+            io_buf = IOBuffer()
+            io_ctx = IOContext(io_buf, io)
+            Base.show(io_ctx, diff.changed[idx][2])
+            printstyled(io, String(take!(io_buf))[2:end-1])  # unquote the line diff
         else
             print(io, "  ", xlines[idx])
         end
@@ -86,6 +92,7 @@ function optimize_line_changes!(diff::CodeDiff; dist=StringDistances.Levenshtein
     empty!(diff.changed)
     empty!(diff.ignore_added)
     previously_removed = Vector{Int}()
+    added_before = Vector{Int}()
     removed_start = 1
     iadded = 1
 
@@ -95,20 +102,50 @@ function optimize_line_changes!(diff::CodeDiff; dist=StringDistances.Levenshtein
             push!(previously_removed, idx)
         elseif state == :added
             iadded += 1
+            changed = false
             for (li, removed_line) in enumerate(previously_removed[removed_start:end])
                 if StringDistances.compare(xlines[removed_line], ylines[idx], dist) ≥ tol
-                    diff.changed[removed_line] = DeepDiffs.deepdiff(xlines[removed_line], ylines[idx])
+                    # `(lines added before this changed line, change diff)`
+                    diff.changed[removed_line] = (copy(added_before), DeepDiffs.deepdiff(xlines[removed_line], ylines[idx]))
+                    if !isempty(added_before)
+                        push!(diff.ignore_added, added_before...)
+                        empty!(added_before)
+                    end
                     push!(diff.ignore_added, idx)
                     removed_start += li  # The next added lines will start from the next removed line
+                    changed = true
                     break
                 end
             end
+            !changed && push!(added_before, idx)
         else
             # Treat conserved lines as a "reset" point
             empty!(previously_removed)
+            empty!(added_before)
             removed_start = 1
         end
     end
 
     return diff
+end
+
+
+function DeepDiffs.visitall(f, diff::CodeDiff)
+    DeepDiffs.visitall(diff.diff) do idx, state, last
+        if state == :removed
+            if haskey(diff.changed, idx)
+                added_lines_before, _ = diff.changed[idx]
+                for line_idx in added_lines_before
+                    f(line_idx, :added, false)
+                end
+                f(idx, :changed, last)
+            else
+                f(idx, :removed, last)
+            end
+        elseif state == :added
+            idx ∉ diff.ignore_added && f(idx, state, last)
+        else
+            f(idx, state, last)
+        end
+    end
 end

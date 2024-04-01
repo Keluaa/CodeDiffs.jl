@@ -23,26 +23,22 @@ julia> f1(a) = a + 1
 f1 (generic function with 1 method)
 
 julia> @code_diff type=:llvm debuginfo=:none color=false f1(Int64(1)) f1(Int8(1))
-; Function Attrs: uwtable              ┃ ; Function Attrs: uwtable
 define i64 @f1(i64 signext %0) #0 {   ⟪╋⟫define i64 @f1(i8 signext %0) #0 {
 top:                                   ┃ top:
+                                       ┣⟫  %1 = sext i8 %0 to i64
   %1 = add i64 %0, 1                  ⟪╋⟫  %2 = add nsw i64 %1, 1
   ret i64 %1                          ⟪╋⟫  ret i64 %2
-                                       ┣⟫  %1 = sext i8 %0 to i64
 }                                      ┃ }
-                                       ┃
 
 julia> f2(a) = a - 1
 f2 (generic function with 1 method)
 
 julia> @code_diff type=:llvm debuginfo=:none color=false f1(1) f2(1)
-; Function Attrs: uwtable              ┃ ; Function Attrs: uwtable
 define i64 @f1(i64 signext %0) #0 {   ⟪╋⟫define i64 @f2(i64 signext %0) #0 {
 top:                                   ┃ top:
   %1 = add i64 %0, 1                  ⟪╋⟫  %1 = add i64 %0, -1
   ret i64 %1                           ┃   ret i64 %1
 }                                      ┃ }
-                                       ┃
 ```
 
 Setting the environment variable `"CODE_DIFFS_LINE_NUMBERS"` to `true` will display line

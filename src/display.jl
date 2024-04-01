@@ -128,12 +128,14 @@ Side by side display of a [`CodeDiff`](@ref) to `io` (defaults to `stdout`).
 environment variable `"CODE_DIFFS_LINE_NUMBERS"`, which itself defaults to `false`.
 """
 function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, line_numbers=nothing)
-    line_numbers = @something line_numbers parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
+    line_numbers = !isnothing(line_numbers) ? line_numbers : parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
+
+    # TODO: `tab_width` shouldn't simply replace '\t' by spaces, but rather pad mod `tab_width`
 
     xlines = split(diff.highlighted_before, '\n')
     ylines = split(diff.highlighted_after, '\n')
 
-    width = @something width displaysize(io)[2]
+    width = !isnothing(width) ? width : displaysize(io)[2]
     if line_numbers
         max_line = length(xlines) + length(DeepDiffs.added(diff))
         line_num_width = length(string(max_line))
@@ -156,42 +158,37 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
 
     left_line = 1
     right_line = 1
-    DeepDiffs.visitall(diff.diff) do idx, state, last
-        if line_numbers
-            if state !== :added
-                line_num = lpad(string(left_line), line_num_width)
-                printstyled(io, line_num, ' '; color=:light_black)
-                left_line += 1
-            end
-        end
-
-        right_printed = true
-        if state == :removed
-            if haskey(diff.changed, idx)
-                line_diff = diff.changed[idx]
-                print_columns_change(io, column_width, line_diff, xlines[idx],
-                    sep_changed_to, empty_column, tab)
-            else
-                print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
-                right_printed = false
-            end
-        elseif state == :added
-            if idx ∈ diff.ignore_added
-                return
-            else
-                printstyled(io, empty_line_num)
-                print_columns(io, column_width, "", sep_added, ylines[idx], empty_column, tab)
-            end
+    function print_line_num(side)
+        !line_numbers && return
+        if side === :left
+            line_num = lpad(string(left_line), line_num_width)
+            printstyled(io, line_num, ' '; color=:light_black)
+            left_line += 1
         else
-            print_columns(io, column_width, xlines[idx], sep_same, xlines[idx], empty_column, tab)
-        end
-
-        if line_numbers && right_printed
             line_num = rpad(string(right_line), line_num_width)
             printstyled(io, line_num; color=:light_black)
             right_line += 1
         end
+    end
 
+    DeepDiffs.visitall(diff) do idx, state, last
+        if state === :removed
+            print_line_num(:left)
+            print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
+        elseif state === :added
+            printstyled(io, empty_line_num)
+            print_columns(io, column_width, "", sep_added, ylines[idx], empty_column, tab)
+            print_line_num(:right)
+        elseif state === :changed
+            print_line_num(:left)
+            _, line_diff = diff.changed[idx]
+            print_columns_change(io, column_width, line_diff, xlines[idx], sep_changed_to, empty_column, tab)
+            print_line_num(:right)
+        else
+            print_line_num(:left)
+            print_columns(io, column_width, xlines[idx], sep_same, xlines[idx], empty_column, tab)
+            print_line_num(:right)
+        end
         !last && println(io)
     end
 end

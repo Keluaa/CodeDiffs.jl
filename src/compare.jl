@@ -85,6 +85,13 @@ function compare_code(code₁::AbstractString, code₂::AbstractString, highligh
         code₂_colored = code₂
     end
 
+    if endswith(code₁, '\n') && endswith(code₂, '\n')
+        code₁ = rstrip(==('\n'), code₁)
+        code₁_colored = rstrip(==('\n'), code₁_colored)
+        code₂ = rstrip(==('\n'), code₂)
+        code₂_colored = rstrip(==('\n'), code₂_colored)
+    end
+
     diff = CodeDiff(code₁, code₂, code₁_colored, code₂_colored)
     optimize_line_changes!(diff)
     return diff
@@ -128,6 +135,13 @@ function compare_show(code₁, code₂; color=true, force_no_ansi=false)
         code₂_colored = String(take!(io_buf)) * (needed_newline ? "\n" : "")
     else
         code₂_colored = code_str₂
+    end
+
+    if endswith(code_str₁, '\n') && endswith(code_str₂, '\n')
+        code_str₁ = rstrip(==('\n'), code_str₁)
+        code₁_colored = rstrip(==('\n'), code₁_colored)
+        code_str₂ = rstrip(==('\n'), code_str₂)
+        code₂_colored = rstrip(==('\n'), code₂_colored)
     end
 
     diff = CodeDiff(code_str₁, code_str₂, code₁_colored, code₂_colored)
@@ -488,7 +502,8 @@ might be inferred automatically.
 """
 macro code_diff(args...)
     length(args) < 2 && throw(ArgumentError("@code_diff takes at least 2 arguments"))
-    options..., code₁, code₂ = args
+    options = args[1:end-2]
+    code₁, code₂ = args[end-1:end]
 
     options = map(options) do option
         !(option isa Expr && option.head === :(=)) &&
