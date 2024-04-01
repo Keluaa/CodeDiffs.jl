@@ -58,11 +58,17 @@ Base.show(io::IO, ::MIME"text/plain", diff::CodeDiff) = side_by_side_diff(io, di
 function Base.show(io::IO, diff::CodeDiff)
     xlines = split(diff.before, '\n')
     ylines = split(diff.after, '\n')
-    DeepDiffs.visitall(diff.diff) do idx, state, last
-        if state == :removed
+    DeepDiffs.visitall(diff) do idx, state, last
+        if state === :removed
             printstyled(io, "- ", xlines[idx], color=:red)
-        elseif state == :added
+        elseif state === :added
             printstyled(io, "+ ", ylines[idx], color=:green)
+        elseif state === :changed
+            printstyled(io, "~ ", color=:yellow)
+            io_buf = IOBuffer()
+            io_ctx = IOContext(io_buf, io)
+            Base.show(io_ctx, diff.changed[idx][2])
+            printstyled(io, String(take!(io_buf))[2:end-1])  # unquote the line diff
         else
             print(io, "  ", xlines[idx])
         end
@@ -121,4 +127,25 @@ function optimize_line_changes!(diff::CodeDiff; dist=StringDistances.Levenshtein
     end
 
     return diff
+end
+
+
+function DeepDiffs.visitall(f, diff::CodeDiff)
+    DeepDiffs.visitall(diff.diff) do idx, state, last
+        if state == :removed
+            if haskey(diff.changed, idx)
+                added_lines_before, _ = diff.changed[idx]
+                for line_idx in added_lines_before
+                    f(line_idx, :added, false)
+                end
+                f(idx, :changed, last)
+            else
+                f(idx, :removed, last)
+            end
+        elseif state == :added
+            idx ∉ diff.ignore_added && f(idx, state, last)
+        else
+            f(idx, state, last)
+        end
+    end
 end

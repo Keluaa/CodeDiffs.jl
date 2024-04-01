@@ -22,6 +22,29 @@ function display_str(v; mime=MIME"text/plain"(), compact=false, color=true, colu
 end
 
 
+function check_diff_display_order(diff::CodeDiffs.CodeDiff, order::Vector{<:Pair})
+    xlines = split(diff.before, '\n')
+    ylines = split(diff.after, '\n')
+    order_idx = 1
+    DeepDiffs.visitall(diff) do idx, state, _
+        if state === :removed
+            @test last(order[order_idx]) === nothing
+            @test occursin(first(order[order_idx]), xlines[idx])
+        elseif state === :added
+            @test first(order[order_idx]) === nothing
+            @test occursin(last(order[order_idx]), ylines[idx])
+        elseif state === :changed
+            line_diff = diff.changed[idx][2]
+            @test occursin(first(order[order_idx]), line_diff.before)
+            @test occursin(last(order[order_idx]), line_diff.after)
+        else
+            @test occursin(first(order[order_idx]), xlines[idx])
+        end
+        order_idx += 1
+    end
+end
+
+
 @testset "CodeDiffs.jl" begin
     @testset "Code quality (Aqua.jl)" begin
         Aqua.test_all(CodeDiffs)
@@ -108,6 +131,19 @@ end
         @test !CodeDiffs.issame(diff)
         @test length(DeepDiffs.added(diff)) == 8
         @test length(DeepDiffs.changed(diff)) == 4
+
+        check_diff_display_order(diff, [
+            "quote"    => "quote",
+            nothing    => "println(\"B\")",
+            "1 + 2"    => "1 + 3",
+            "f(a, b)"  => "f(a, d)",
+            "g(c, d)"  => "g(c, b)",
+            nothing    => "a = c + b",
+            nothing    => "c = b - d",
+            nothing    => "h(x, y)",
+            "\"test\"" => "\"test2\"",
+            "end"      => "end"
+        ])
     end
 
     @testset "Display" begin
@@ -184,6 +220,19 @@ end
             end
 
             diff = CodeDiffs.compare_ast(A, B; color=false)
+
+            check_diff_display_order(diff, [
+                "quote"    => "quote",
+                nothing    => "println(\"B\")",
+                "1 + 2"    => "1 + 3",
+                "f(a, b)"  => "f(a, d)",
+                "g(c, d)"  => "g(c, b)",
+                nothing    => "h(x, y)",
+                "\"test\"" => "\"test2\"",
+                "end"      => "end"
+            ])
+
+            @test_reference "references/a_vs_b_PRINT.jl_ast" display_str(diff; mime=nothing, color=false)
             @test_reference "references/a_vs_b.jl_ast" display_str(diff; color=false, columns=120)
 
             withenv("CODE_DIFFS_LINE_NUMBERS" => true) do

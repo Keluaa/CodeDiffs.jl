@@ -171,39 +171,24 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
         end
     end
 
-    DeepDiffs.visitall(diff.diff) do idx, state, last
-        if state == :removed
-            if haskey(diff.changed, idx)
-                added_lines_before, line_diff = diff.changed[idx]
-                for line_idx in added_lines_before
-                    printstyled(io, empty_line_num)
-                    print_columns(io, column_width, "", sep_added, ylines[line_idx], empty_column, tab)
-                    print_line_num(:right)
-                    println(io)
-                end
-
-                print_line_num(:left)
-                print_columns_change(io, column_width, line_diff, xlines[idx],
-                    sep_changed_to, empty_column, tab)
-                print_line_num(:right)
-            else
-                print_line_num(:left)
-                print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
-            end
-        elseif state == :added
-            if idx ∈ diff.ignore_added
-                return
-            else
-                printstyled(io, empty_line_num)
-                print_columns(io, column_width, "", sep_added, ylines[idx], empty_column, tab)
-                print_line_num(:right)
-            end
+    DeepDiffs.visitall(diff) do idx, state, last
+        if state === :removed
+            print_line_num(:left)
+            print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
+        elseif state === :added
+            printstyled(io, empty_line_num)
+            print_columns(io, column_width, "", sep_added, ylines[idx], empty_column, tab)
+            print_line_num(:right)
+        elseif state === :changed
+            print_line_num(:left)
+            _, line_diff = diff.changed[idx]
+            print_columns_change(io, column_width, line_diff, xlines[idx], sep_changed_to, empty_column, tab)
+            print_line_num(:right)
         else
             print_line_num(:left)
             print_columns(io, column_width, xlines[idx], sep_same, xlines[idx], empty_column, tab)
             print_line_num(:right)
         end
-
         !last && println(io)
     end
 end
