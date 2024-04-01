@@ -1,3 +1,4 @@
 CodeInfo(                                                  ┃ CodeInfo(                                                 
-1 ─     return 1                                           ┃ 1 ─     return 1                                          
+1 ─     $(Expr(:code_coverage_effect))::Nothing            ┃ 1 ─     $(Expr(:code_coverage_effect))::Nothing           
+└──     return 1                                           ┃ └──     return 1                                          
 ) => Int64                                                 ┃ ) => Int64                                                

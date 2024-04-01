@@ -6,6 +6,13 @@ using ReferenceTests
 using Test
 
 
+if Base.JLOptions().code_coverage == 0
+    # This is because code coverage adds instructions in Julia IR, and for references to
+    # be correct and compared with, code coverage must be always enabled.
+    error("tests must be done with code coverage enabled")
+end
+
+
 # Code in references might change depending on the Julia version.
 # Versions introducing significant changes in Julia IR should have their entry here.
 const REFERENCES_VERSION = if v"1.6-" ≤ VERSION < v"1.7"
