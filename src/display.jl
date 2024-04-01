@@ -128,12 +128,14 @@ Side by side display of a [`CodeDiff`](@ref) to `io` (defaults to `stdout`).
 environment variable `"CODE_DIFFS_LINE_NUMBERS"`, which itself defaults to `false`.
 """
 function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, line_numbers=nothing)
-    line_numbers = @something line_numbers parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
+    line_numbers = !isnothing(line_numbers) ? line_numbers : parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
+
+    # TODO: `tab_width` shouldn't simply replace '\t' by spaces, but rather pad mod `tab_width`
 
     xlines = split(diff.highlighted_before, '\n')
     ylines = split(diff.highlighted_after, '\n')
 
-    width = @something width displaysize(io)[2]
+    width = !isnothing(width) ? width : displaysize(io)[2]
     if line_numbers
         max_line = length(xlines) + length(DeepDiffs.added(diff))
         line_num_width = length(string(max_line))

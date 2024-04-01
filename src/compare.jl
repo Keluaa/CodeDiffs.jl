@@ -488,7 +488,8 @@ might be inferred automatically.
 """
 macro code_diff(args...)
     length(args) < 2 && throw(ArgumentError("@code_diff takes at least 2 arguments"))
-    options..., code₁, code₂ = args
+    options = args[1:end-2]
+    code₁, code₂ = args[end-1:end]
 
     options = map(options) do option
         !(option isa Expr && option.head === :(=)) &&
