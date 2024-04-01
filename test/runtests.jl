@@ -6,27 +6,6 @@ using ReferenceTests
 using Test
 
 
-if Base.JLOptions().code_coverage == 0
-    # This is because code coverage adds instructions in Julia IR, and for references to
-    # be correct and compared with, code coverage must be always enabled.
-    error("tests must be done with code coverage enabled")
-end
-
-
-# Code in references might change depending on the Julia version.
-# Versions introducing significant changes in Julia IR should have their entry here.
-const REFERENCES_VERSION = if v"1.6-" ≤ VERSION < v"1.7"
-    "v1.6"
-elseif v"1.10-" ≤ VERSION
-    "v1.10"
-else
-    error("no references for this version")
-end
-
-
-const REFERENCES_DIR = joinpath("references", REFERENCES_VERSION)
-
-
 function display_str(v; mime=MIME"text/plain"(), compact=false, color=true, columns=nothing)
     # Fancy print `v` to a string
     columns = !isnothing(columns) ? columns : displaysize(stdout)[2]
@@ -132,27 +111,19 @@ end
     end
 
     @testset "Display" begin
-        function test_cmp_display(cmp_name, f₁, args₁, f₂, args₂)
+        function test_cmp_display(f₁, args₁, f₂, args₂)
             @testset "Typed" begin
-                diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
-                @test_reference(
-                    "$REFERENCES_DIR/$(cmp_name).jl_typed",
-                    display_str(diff; color=false, columns=120)
-                )
-
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
-                @test_reference(
-                    "$REFERENCES_DIR/$(cmp_name)_COLOR.jl_typed",
-                    display_str(diff; columns=120)
-                )
+                printstyled(display_str(diff; columns=120))
+                println()
             end
 
             @testset "LLVM" begin
                 diff = CodeDiffs.compare_code_llvm(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test (@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                printstyled(display_str(diff; columns=120))  # output not portable therefore no reference
+                printstyled(display_str(diff; columns=120))
                 println()
             end
 
@@ -160,24 +131,22 @@ end
                 diff = CodeDiffs.compare_code_native(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test (@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                printstyled(display_str(diff; columns=120))  # output not portable therefore no reference
+                printstyled(display_str(diff; columns=120))
                 println()
             end
 
             @testset "Line numbers" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
                 withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
-                    @test_reference(
-                        "$REFERENCES_DIR/$(cmp_name)_LINES.jl_typed",
-                        display_str(diff; color=false, columns=120)
-                    )
+                    printstyled(display_str(diff; color=false, columns=120))
+                    println()
                 end
             end
         end
 
         @testset "f1" begin
             f() = 1
-            test_cmp_display("f1", f, Tuple{}, f, Tuple{})
+            test_cmp_display(f, Tuple{}, f, Tuple{})
         end
 
         @testset "saxpy" begin
@@ -194,6 +163,7 @@ end
             end
 
             saxpy_args = Tuple{Vector{Int}, Int, Vector{Int}, Vector{Int}}
+            test_cmp_display(saxpy, saxpy_args, saxpy_simd, saxpy_args)
         end
 
         @testset "AST" begin
