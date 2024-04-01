@@ -1,0 +1,8 @@
+ 1 quote                                                   ┃ quote                                                  1 
+ 2                                                            ┣⟫    println("B")                                       2 
+    1 + 2                                              ⟪╋⟫    1 + 3                                              3 
+ 3     f(a, b)                                            ⟪╋⟫    f(a, d)                                            4 
+ 4     g(c, d)                                            ⟪╋⟫    g(c, b)                                            5 
+ 5                                                            ┣⟫    h(x, y)                                            6 
+    "test"                                             ⟪╋⟫    "test2"                                            7 
+ 6 end                                                     ┃ end                                                    8 

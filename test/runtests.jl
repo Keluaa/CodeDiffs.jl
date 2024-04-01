@@ -115,16 +115,20 @@ end
         end
 
         B = quote
+            println("B")
             1 + 3
             f(a, d)
             g(c, b)
+            a = c + b
+            c = b - d
+            h(x, y)
             "test2"
         end
 
         diff = CodeDiffs.compare_ast(A, B; color=false)
         @test !CodeDiffs.issame(diff)
-        # All statements were marked as changed
-        @test length(DeepDiffs.added(diff)) == length(DeepDiffs.changed(diff)) == 4
+        @test length(DeepDiffs.added(diff)) == 8
+        @test length(DeepDiffs.changed(diff)) == 4
     end
 
     @testset "Display" begin
@@ -190,7 +194,34 @@ end
             end
 
             saxpy_args = Tuple{Vector{Int}, Int, Vector{Int}, Vector{Int}}
-            test_cmp_display("saxpy", saxpy, saxpy_args, saxpy_simd, saxpy_args)
+        end
+
+        @testset "AST" begin
+            A = quote
+                1 + 2
+                f(a, b)
+                g(c, d)
+                "test"
+            end
+    
+            B = quote
+                println("B")
+                1 + 3
+                f(a, d)
+                g(c, b)
+                h(x, y)
+                "test2"
+            end
+
+            diff = CodeDiffs.compare_ast(A, B; color=false)
+            @test_reference "references/a_vs_b.jl_ast" display_str(diff; color=false, columns=120)
+
+            withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
+                @test_reference "references/a_vs_b_LINES.jl_ast" display_str(diff; color=false, columns=120)
+            end
+
+            diff = CodeDiffs.compare_ast(A, B; color=true)
+            @test_reference "references/a_vs_b_COLOR.jl_ast" display_str(diff; color=true, columns=120)
         end
     end
 

@@ -158,24 +158,37 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
 
     left_line = 1
     right_line = 1
-    DeepDiffs.visitall(diff.diff) do idx, state, last
-        if line_numbers
-            if state !== :added
-                line_num = lpad(string(left_line), line_num_width)
-                printstyled(io, line_num, ' '; color=:light_black)
-                left_line += 1
-            end
+    function print_line_num(side)
+        !line_numbers && return
+        if side === :left
+            line_num = lpad(string(left_line), line_num_width)
+            printstyled(io, line_num, ' '; color=:light_black)
+            left_line += 1
+        else
+            line_num = rpad(string(right_line), line_num_width)
+            printstyled(io, line_num; color=:light_black)
+            right_line += 1
         end
+    end
 
-        right_printed = true
+    DeepDiffs.visitall(diff.diff) do idx, state, last
         if state == :removed
             if haskey(diff.changed, idx)
-                line_diff = diff.changed[idx]
+                added_lines_before, line_diff = diff.changed[idx]
+                for line_idx in added_lines_before
+                    printstyled(io, empty_line_num)
+                    print_columns(io, column_width, "", sep_added, ylines[line_idx], empty_column, tab)
+                    print_line_num(:right)
+                    println(io)
+                end
+
+                print_line_num(:left)
                 print_columns_change(io, column_width, line_diff, xlines[idx],
                     sep_changed_to, empty_column, tab)
+                print_line_num(:right)
             else
+                print_line_num(:left)
                 print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
-                right_printed = false
             end
         elseif state == :added
             if idx ∈ diff.ignore_added
@@ -183,15 +196,12 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
             else
                 printstyled(io, empty_line_num)
                 print_columns(io, column_width, "", sep_added, ylines[idx], empty_column, tab)
+                print_line_num(:right)
             end
         else
+            print_line_num(:left)
             print_columns(io, column_width, xlines[idx], sep_same, xlines[idx], empty_column, tab)
-        end
-
-        if line_numbers && right_printed
-            line_num = rpad(string(right_line), line_num_width)
-            printstyled(io, line_num; color=:light_black)
-            right_line += 1
+            print_line_num(:right)
         end
 
         !last && println(io)
