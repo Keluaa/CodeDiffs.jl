@@ -151,6 +151,8 @@ end
             @testset "Typed" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
+                @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
+                println("\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
                 printstyled(display_str(diff; columns=120))
                 println()
             end
@@ -158,7 +160,9 @@ end
             @testset "LLVM" begin
                 diff = CodeDiffs.compare_code_llvm(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
-                @test (@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
+                @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
+                @test rstrip(@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
+                println("\nLLVM: $(nameof(f₁)) vs. $(nameof(f₂))")
                 printstyled(display_str(diff; columns=120))
                 println()
             end
@@ -166,7 +170,9 @@ end
             @testset "Native" begin
                 diff = CodeDiffs.compare_code_native(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
-                @test (@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
+                @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
+                @test rstrip(@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
+                println("\nNative: $(nameof(f₁)) vs. $(nameof(f₂))")
                 printstyled(display_str(diff; columns=120))
                 println()
             end
@@ -174,6 +180,7 @@ end
             @testset "Line numbers" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
                 withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
+                    println("\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
                     printstyled(display_str(diff; color=false, columns=120))
                     println()
                 end

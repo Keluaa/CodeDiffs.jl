@@ -29,7 +29,6 @@ top:                                   ┃ top:
   ret i64 %1                          ⟪╋⟫  ret i64 %2
                                        ┣⟫  %1 = sext i8 %0 to i64
 }                                      ┃ }
-                                       ┃
 
 julia> f2(a) = a - 1
 f2 (generic function with 1 method)
@@ -40,7 +39,6 @@ top:                                   ┃ top:
   %1 = add i64 %0, 1                  ⟪╋⟫  %1 = add i64 %0, -1
   ret i64 %1                           ┃   ret i64 %1
 }                                      ┃ }
-                                       ┃
 ```
 
 Setting the environment variable `"CODE_DIFFS_LINE_NUMBERS"` to `true` will display line
