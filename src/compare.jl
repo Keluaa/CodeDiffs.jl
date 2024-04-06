@@ -193,6 +193,16 @@ function compare_code_native(
 end
 
 
+function method_instance(sig, world)
+    @static if VERSION < v"1.10"
+        mth_match = Base._which(sig, world)
+    else
+        mth_match = Base._which(sig; world)
+    end
+    return Core.Compiler.specialize_method(mth_match)
+end
+
+
 """
     compare_code_native(
         f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
@@ -209,7 +219,11 @@ function compare_code_native(
     @nospecialize(f, types)
 
     sig = Base.signature_type(f, types)
-    params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
+    @static if VERSION < v"1.10"
+        params = Base.CodegenParams(debug_info_kind=Cint(0))
+    else
+        params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
+    end
 
     if debuginfo === :default
         debuginfo = :source
@@ -218,20 +232,26 @@ function compare_code_native(
     end
 
     # See `InteractiveUtils._dump_function`
-    f₁ = Base._which(sig; world=world₁)
-    mi_f₁ = Core.Compiler.specialize_method(f₁)
-    if dump_module
-        f₁_str = InteractiveUtils._dump_function_native_assembly(mi_f₁, world₁, false, syntax, debuginfo, binary, raw, params)
+    mi_f₁ = method_instance(sig, world₁)
+    @static if VERSION < v"1.10"
+        f₁_str = InteractiveUtils._dump_function_linfo_native(mi_f₁, world₁, false, syntax, debuginfo, binary)
     else
-        f₁_str = InteractiveUtils._dump_function_native_disassembly(mi_f₁, world₁, false, syntax, debuginfo, binary)
+        if dump_module
+            f₁_str = InteractiveUtils._dump_function_native_assembly(mi_f₁, world₁, false, syntax, debuginfo, binary, raw, params)
+        else
+            f₁_str = InteractiveUtils._dump_function_native_disassembly(mi_f₁, world₁, false, syntax, debuginfo, binary)
+        end
     end
 
-    f₂ = Base._which(sig; world=world₂)
-    mi_f₂ = Core.Compiler.specialize_method(f₂)
-    if dump_module
-        f₂_str = InteractiveUtils._dump_function_native_assembly(mi_f₂, world₂, false, syntax, debuginfo, binary, raw, params)
+    mi_f₂ = method_instance(sig, world₂)
+    @static if VERSION < v"1.10"
+        f₂_str = InteractiveUtils._dump_function_linfo_native(mi_f₂, world₂, false, syntax, debuginfo, binary)
     else
-        f₂_str = InteractiveUtils._dump_function_native_disassembly(mi_f₂, world₂, false, syntax, debuginfo, binary)
+        if dump_module
+            f₂_str = InteractiveUtils._dump_function_native_assembly(mi_f₂, world₂, false, syntax, debuginfo, binary, raw, params)
+        else
+            f₂_str = InteractiveUtils._dump_function_native_disassembly(mi_f₂, world₂, false, syntax, debuginfo, binary)
+        end
     end
 
     return compare_code_native(f₁_str, f₂_str; color)
@@ -297,7 +317,11 @@ function compare_code_llvm(
     @nospecialize(f, types)
 
     sig = Base.signature_type(f, types)
-    params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
+    @static if VERSION < v"1.10"
+        params = Base.CodegenParams(debug_info_kind=Cint(0))
+    else
+        params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
+    end
 
     if debuginfo === :default
         debuginfo = :source
@@ -306,17 +330,27 @@ function compare_code_llvm(
     end
 
     # See `InteractiveUtils._dump_function`
-    f₁ = Base._which(sig; world=world₁)
-    mi_f₁ = Core.Compiler.specialize_method(f₁)
-    f₁_str = InteractiveUtils._dump_function_llvm(
-        mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
-    )
+    mi_f₁ = method_instance(sig, world₁)
+    @static if VERSION < v"1.10"
+        f₁_str = InteractiveUtils._dump_function_linfo_llvm(
+            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
+        )
+    else
+        f₁_str = InteractiveUtils._dump_function_llvm(
+            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
+        )
+    end
 
-    f₂ = Base._which(sig; world=world₂)
-    mi_f₂ = Core.Compiler.specialize_method(f₂)
-    f₂_str = InteractiveUtils._dump_function_llvm(
-        mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
-    )
+    mi_f₂ = method_instance(sig, world₂)
+    @static if VERSION < v"1.10"
+        f₂_str = InteractiveUtils._dump_function_linfo_llvm(
+            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
+        )
+    else
+        f₂_str = InteractiveUtils._dump_function_llvm(
+            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
+        )
+    end
 
     return compare_code_llvm(f₁_str, f₂_str; color)
 end

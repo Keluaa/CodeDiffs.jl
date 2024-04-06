@@ -267,4 +267,39 @@ end
             @test CodeDiffs.replace_llvm_module_name("julia_@f_1", "@f") == "@f"
         end
     end
+
+    @testset "World age" begin
+        f() = 1
+        w₁ = Base.get_world_counter()
+        f() = 2
+        w₂ = Base.get_world_counter()
+
+        @testset "Typed" begin
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
+            @test occursin("1", diff.before)
+            @test occursin("2", diff.after)
+        end
+
+        @testset "LLVM" begin
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
+            @test occursin("1", diff.before)
+            @test occursin("2", diff.after)
+        end
+
+        @testset "Native" begin
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
+        end
+    end
 end
