@@ -6,6 +6,11 @@ using ReferenceTests
 using Test
 
 
+# Disable printing diffs to stdout by setting `ENV["TEST_PRINT_DIFFS"] = false`
+const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", "true"))
+const TEST_IO = TEST_PRINT_DIFFS ? stdout : IOContext(IOBuffer(), stdout)
+
+
 function display_str(v; mime=MIME"text/plain"(), compact=false, color=true, columns=nothing)
     # Fancy print `v` to a string
     columns = !isnothing(columns) ? columns : displaysize(stdout)[2]
@@ -152,9 +157,9 @@ end
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
-                println("\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "LLVM" begin
@@ -162,9 +167,9 @@ end
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                println("\nLLVM: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nLLVM: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "Native" begin
@@ -172,17 +177,18 @@ end
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                println("\nNative: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nNative: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "Line numbers" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
+                @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
-                    println("\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
-                    printstyled(display_str(diff; color=false, columns=120))
-                    println()
+                    println(TEST_IO, "\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
+                    printstyled(TEST_IO, display_str(diff; color=false, columns=120))
+                    println(TEST_IO)
                 end
             end
         end
