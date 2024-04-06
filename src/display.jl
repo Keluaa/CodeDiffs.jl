@@ -48,8 +48,8 @@ function print_columns_change(io, width, line_diff, highlighted_left, sep, empty
 end
 
 
-function next_ansi_sequence(str, idx)
-    m = match(ANSI_REGEX, str, idx)
+function next_ansi_sequence(str, idx, str_len)
+    m = (1 ≤ idx ≤ str_len) ? match(ANSI_REGEX, str, idx) : nothing
     if m === nothing
         return typemax(idx), ""
     else
@@ -75,7 +75,8 @@ function printstyled_code_line_diff(
         added_bkg_color = ""
     end
 
-    idx_before_next_ansi, ansi_seq = next_ansi_sequence(highlighted_left, 1)
+    hl_length = length(highlighted_left)
+    idx_before_next_ansi, ansi_seq = next_ansi_sequence(highlighted_left, 1, hl_length)
     highlighted_offset = 0
 
     tmp_io = IOBuffer()
@@ -88,7 +89,7 @@ function printstyled_code_line_diff(
             end
             highlighted_offset += length(ansi_seq)
             idx_before_next_ansi, ansi_seq =
-                next_ansi_sequence(highlighted_left, idx + highlighted_offset)
+                next_ansi_sequence(highlighted_left, idx + highlighted_offset, hl_length)
         end
 
         if state === :removed
