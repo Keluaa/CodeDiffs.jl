@@ -113,7 +113,7 @@ end
         @test occursin("#= file:42 =#", diff.before)
         diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=true, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
-        @test diff == (@code_diff color=false e :(1+2))
+        @test diff == (@code_diff type=:ast color=false e :(1+2))
     end
 
     @testset "Basic function" begin

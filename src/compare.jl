@@ -491,16 +491,11 @@ end
 
 
 """
-    code_diff(code₁::Markdown.MD, code₂::Markdown.MD; kwargs...)
-    code_diff(code₁::Expr, code₂::Expr; kwargs...)
-    code_diff(::Val{:ast}, code₁::AbstractString, code₂::AbstractString; kwargs...)
+    code_diff(::Val{:ast}, code₁, code₂; kwargs...)
 
-Compare AST in `code₁` and `code₂`. `Expr` and `String` are placed in `Markdown` code blocks.
+Compare AST in `code₁` and `code₂`, which can be `Expr`, `AbstractString` or `Markdown.MD`.
 """
-code_diff(code₁::Markdown.MD, code₂::Markdown.MD; kwargs...) = compare_ast(code₁, code₂; kwargs...)
-code_diff(code₁::Expr, code₂::Expr; kwargs...) = compare_ast(code₁, code₂; kwargs...)
-code_diff(::Val{:ast}, code₁::AbstractString, code₂::AbstractString; kwargs...) =
-    compare_ast(code₁, code₂; kwargs...)
+code_diff(::Val{:ast}, code₁, code₂; kwargs...) = compare_ast(code₁, code₂; kwargs...)
 
 code_diff(::Val{:native}, code₁::AbstractString, code₂::AbstractString; kwargs...) =
     compare_code(code₁, code₂, InteractiveUtils.print_native; kwargs...)
@@ -511,13 +506,13 @@ code_diff(::Val{:typed},  code₁::AbstractString, code₂::AbstractString; kwar
 
 """
     code_diff(::Val{type}, f₁, types₁, f₂, types₂; kwargs...)
-    code_diff(::Val{type}, code₁::AbstractString, code₂::AbstractString; kwargs...)
+    code_diff(::Val{type}, code₁, code₂; kwargs...)
     code_diff(args...; type=:native, kwargs...)
 
 Dispatch to [`compare_code_native`](@ref), [`compare_code_llvm`](@ref),
 [`compare_code_typed`](@ref) or [`compare_ast`](@ref) depending on `type`.
 """
-code_diff(code₁::AbstractString, code₂::AbstractString; type::Symbol=:native, kwargs...) =
+code_diff(code₁, code₂; type::Symbol=:native, kwargs...) =
     code_diff(Val(type), code₁, code₂; kwargs...)
 
 @nospecialize
