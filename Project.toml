@@ -27,8 +27,9 @@ julia = "1.7"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+OhMyREPL = "5fb14364-9ced-5910-84b2-373655c76a03"
 ReferenceTests = "324d217c-45ce-50fc-942e-d289b448e8cf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "InteractiveUtils", "ReferenceTests", "Test"]
+test = ["Aqua", "InteractiveUtils", "OhMyREPL", "ReferenceTests", "Test"]

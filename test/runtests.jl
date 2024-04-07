@@ -6,6 +6,51 @@ using ReferenceTests
 using Test
 
 
+function jl_options_overload(field::Symbol, state::Int8)
+    # Unsafe way of setting `Base.JLOptions().field`
+    field_idx = findfirst(==(field), fieldnames(Base.JLOptions))
+    field_offset = fieldoffset(Base.JLOptions, field_idx)
+    field_ptr = cglobal(:jl_options, Int8) + field_offset
+    if fieldtype(Base.JLOptions, field_idx) === Int8
+        prev = unsafe_load(field_ptr)
+        unsafe_store!(field_ptr, Int8(state))
+        return prev
+    else
+        error("unexpected type for `Base.JLOptions().$field`")
+    end
+end
+
+
+macro no_overwrite_warning(expr)
+    # Enable/disable the method overwrite warning through the JLOptions
+    # See https://github.com/JuliaLang/julia/blob/fe0db7d9474781ee949c7927f806214c7fc00a9a/src/gf.c#L1569C39-L1569C67
+    @static if VERSION < v"1.10-"
+        return esc(expr)
+    else
+        prev_sym = gensym(:prev)
+        return Expr(:tryfinally, quote
+                $prev_sym = $jl_options_overload(:warn_overwrite, Int8(0))
+                $(esc(expr))
+            end, quote
+                $jl_options_overload(:warn_overwrite, $prev_sym) 
+            end
+        )
+    end
+end
+
+
+# OhMyREPL is quite reluctant from loading its Markdown highlighting overload in a testing
+# environment. See https://github.com/KristofferC/OhMyREPL.jl/blob/b0071f5ee785a81ca1e69a561586ff270b4dc2bb/src/OhMyREPL.jl#L106
+prev = jl_options_overload(:isinteractive, Int8(1))
+@no_overwrite_warning using OhMyREPL
+jl_options_overload(:isinteractive, prev)
+
+
+# Disable printing diffs to stdout by setting `ENV["TEST_PRINT_DIFFS"] = false`
+const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", "true"))
+const TEST_IO = TEST_PRINT_DIFFS ? stdout : IOContext(IOBuffer(), stdout)
+
+
 function display_str(v; mime=MIME"text/plain"(), compact=false, color=true, columns=nothing)
     # Fancy print `v` to a string
     columns = !isnothing(columns) ? columns : displaysize(stdout)[2]
@@ -69,8 +114,6 @@ end
         diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=true, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
         @test diff == (@code_diff color=false e :(1+2))
-
-        # TODO: OhMyREPL highlighting
     end
 
     @testset "Basic function" begin
@@ -152,9 +195,9 @@ end
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
-                println("\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "LLVM" begin
@@ -162,9 +205,9 @@ end
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                println("\nLLVM: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nLLVM: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "Native" begin
@@ -172,17 +215,18 @@ end
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
-                println("\nNative: $(nameof(f₁)) vs. $(nameof(f₂))")
-                printstyled(display_str(diff; columns=120))
-                println()
+                println(TEST_IO, "\nNative: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
             end
 
             @testset "Line numbers" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
+                @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
-                    println("\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
-                    printstyled(display_str(diff; color=false, columns=120))
-                    println()
+                    println(TEST_IO, "\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
+                    printstyled(TEST_IO, display_str(diff; color=false, columns=120))
+                    println(TEST_IO)
                 end
             end
         end
@@ -248,6 +292,10 @@ end
 
             diff = CodeDiffs.compare_ast(A, B; color=true)
             @test_reference "references/a_vs_b_COLOR.jl_ast" display_str(diff; color=true, columns=120)
+
+            # Single line code should not cause any issues with DeepDiffs.jl
+            diff = CodeDiffs.code_diff(Val(:ast), "1 + 2", "1 + 3"; color=false)
+            @test length(CodeDiffs.added(diff)) == length(CodeDiffs.removed(diff)) == 1
         end
     end
 
@@ -259,6 +307,43 @@ end
             @test CodeDiffs.replace_llvm_module_name("julia_f_1", "@f") == "f"
         else
             @test CodeDiffs.replace_llvm_module_name("julia_@f_1", "@f") == "@f"
+        end
+    end
+
+    @testset "World age" begin
+        @no_overwrite_warning @eval begin
+            f() = 1
+            w₁ = Base.get_world_counter()
+            f() = 2
+            w₂ = Base.get_world_counter()
+        end
+
+        @testset "Typed" begin
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
+            @test occursin("1", diff.before)
+            @test occursin("2", diff.after)
+        end
+
+        @testset "LLVM" begin
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
+            @test occursin("1", diff.before)
+            @test occursin("2", diff.after)
+        end
+
+        @testset "Native" begin
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            @test !CodeDiffs.issame(diff)
         end
     end
 end
