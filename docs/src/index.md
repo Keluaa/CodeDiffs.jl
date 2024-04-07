@@ -64,8 +64,8 @@ compare_code_native
 compare_code_llvm
 compare_code_typed
 compare_ast
-code_diff(::AbstractString, ::AbstractString)
-code_diff(::Markdown.MD, ::Markdown.MD)
+code_diff(::Any, ::Any)
+code_diff(::Val{:ast}, ::Any, ::Any)
 @code_diff
 ```
 
