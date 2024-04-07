@@ -1,1 +1,0 @@
-test/reference/** linguist-generated
