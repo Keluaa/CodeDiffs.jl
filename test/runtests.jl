@@ -6,6 +6,46 @@ using ReferenceTests
 using Test
 
 
+function jl_options_overload(field::Symbol, state::Int8)
+    # Unsafe way of setting `Base.JLOptions().field`
+    field_idx = findfirst(==(field), fieldnames(Base.JLOptions))
+    field_offset = fieldoffset(Base.JLOptions, field_idx)
+    field_ptr = cglobal(:jl_options, Int8) + field_offset
+    if fieldtype(Base.JLOptions, field_idx) === Int8
+        prev = unsafe_load(field_ptr)
+        unsafe_store!(field_ptr, Int8(state))
+        return prev
+    else
+        error("unexpected type for `Base.JLOptions().$field`")
+    end
+end
+
+
+macro no_overwrite_warning(expr)
+    # Enable/disable the method overwrite warning through the JLOptions
+    # See https://github.com/JuliaLang/julia/blob/fe0db7d9474781ee949c7927f806214c7fc00a9a/src/gf.c#L1569C39-L1569C67
+    @static if VERSION < v"1.10-"
+        return esc(expr)
+    else
+        prev_sym = gensym(:prev)
+        return Expr(:tryfinally, quote
+                $prev_sym = $jl_options_overload(:warn_overwrite, Int8(0))
+                $(esc(expr))
+            end, quote
+                $jl_options_overload(:warn_overwrite, $prev_sym) 
+            end
+        )
+    end
+end
+
+
+# OhMyREPL is quite reluctant from loading its Markdown highlighting overload in a testing
+# environment. See https://github.com/KristofferC/OhMyREPL.jl/blob/b0071f5ee785a81ca1e69a561586ff270b4dc2bb/src/OhMyREPL.jl#L106
+prev = jl_options_overload(:isinteractive, Int8(1))
+@no_overwrite_warning using OhMyREPL
+jl_options_overload(:isinteractive, prev)
+
+
 # Disable printing diffs to stdout by setting `ENV["TEST_PRINT_DIFFS"] = false`
 const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", "true"))
 const TEST_IO = TEST_PRINT_DIFFS ? stdout : IOContext(IOBuffer(), stdout)
@@ -74,8 +114,6 @@ end
         diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=true, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
         @test diff == (@code_diff color=false e :(1+2))
-
-        # TODO: OhMyREPL highlighting
     end
 
     @testset "Basic function" begin
@@ -269,10 +307,12 @@ end
     end
 
     @testset "World age" begin
-        f() = 1
-        w₁ = Base.get_world_counter()
-        f() = 2
-        w₂ = Base.get_world_counter()
+        @no_overwrite_warning @eval begin
+            f() = 1
+            w₁ = Base.get_world_counter()
+            f() = 2
+            w₂ = Base.get_world_counter()
+        end
 
         @testset "Typed" begin
             diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
