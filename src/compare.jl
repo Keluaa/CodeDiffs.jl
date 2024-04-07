@@ -137,7 +137,10 @@ function compare_show(code₁, code₂; color=true, force_no_ansi=false)
         code₂_colored = code_str₂
     end
 
-    if endswith(code_str₁, '\n') && endswith(code_str₂, '\n')
+    if !needed_newline && endswith(code_str₁, '\n') && endswith(code_str₂, '\n') &&
+            count(==('\n'), code_str₁) > 1 && count(==('\n'), code_str₂) > 1
+        # Strip the last newline only if there is more than one, for the same reason as to
+        # why `needed_newline` exists.
         code_str₁ = rstrip(==('\n'), code_str₁)
         code₁_colored = rstrip(==('\n'), code₁_colored)
         code_str₂ = rstrip(==('\n'), code_str₂)
@@ -453,13 +456,11 @@ function compare_ast(code₁::Expr, code₂::Expr; color=true, prettify=true, li
 
         print(io_buf, code₁)
         code_str₁ = String(take!(io_buf))
-        code_md₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code_str₁))
 
         print(io_buf, code₂)
         code_str₂ = String(take!(io_buf))
-        code_md₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code_str₂))
 
-        return compare_ast(code_md₁, code_md₂)
+        return compare_ast(code_str₁, code_str₂)
     else
         return compare_show(code₁, code₂; color=false)
     end
@@ -467,6 +468,7 @@ end
 
 
 """
+    compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
     compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
 
 [`CodeDiff`](@ref) between Julia code string, in the form of Markdown code blocks.
@@ -481,15 +483,24 @@ function compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
     return compare_show(code₁, code₂; color, force_no_ansi=true)
 end
 
+function compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
+    code_md₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₁))
+    code_md₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₂))
+    return compare_ast(code_md₁, code_md₂; color)
+end
+
 
 """
     code_diff(code₁::Markdown.MD, code₂::Markdown.MD; kwargs...)
     code_diff(code₁::Expr, code₂::Expr; kwargs...)
+    code_diff(::Val{:ast}, code₁::AbstractString, code₂::AbstractString; kwargs...)
 
-Compare AST in `code₁` and `code₂`. `Expr` are placed in `Markdown` code blocks.
+Compare AST in `code₁` and `code₂`. `Expr` and `String` are placed in `Markdown` code blocks.
 """
 code_diff(code₁::Markdown.MD, code₂::Markdown.MD; kwargs...) = compare_ast(code₁, code₂; kwargs...)
 code_diff(code₁::Expr, code₂::Expr; kwargs...) = compare_ast(code₁, code₂; kwargs...)
+code_diff(::Val{:ast}, code₁::AbstractString, code₂::AbstractString; kwargs...) =
+    compare_ast(code₁, code₂; kwargs...)
 
 code_diff(::Val{:native}, code₁::AbstractString, code₂::AbstractString; kwargs...) =
     compare_code(code₁, code₂, InteractiveUtils.print_native; kwargs...)

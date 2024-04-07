@@ -292,6 +292,10 @@ end
 
             diff = CodeDiffs.compare_ast(A, B; color=true)
             @test_reference "references/a_vs_b_COLOR.jl_ast" display_str(diff; color=true, columns=120)
+
+            # Single line code should not cause any issues with DeepDiffs.jl
+            diff = CodeDiffs.code_diff(Val(:ast), "1 + 2", "1 + 3"; color=false)
+            @test length(CodeDiffs.added(diff)) == length(CodeDiffs.removed(diff)) == 1
         end
     end
 
