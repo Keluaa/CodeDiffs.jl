@@ -12,10 +12,12 @@ Supports syntax highlighting.
 
 The `@code_diff` macro is the main entry point. If possible, the code type will be
 detected automatically, otherwise add e.g. `type=:native` for native assembly comparison:
-![](assets\basic_usage.gif)
+
+![](assets/basic_usage.gif)
 
 Syntax highlighting for Julia AST is also supported:
-![](assets\ast_diff.gif)
+
+![](assets/ast_diff.gif)
 
 ## Supported languages
 
