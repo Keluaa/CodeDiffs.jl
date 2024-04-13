@@ -32,7 +32,7 @@ function CodeDiff(
 )
     return CodeDiff(
         diff.before, diff.after, Dict(), Set(), diff.diff,
-        highlighted_before, highlighted_after
+        String(highlighted_before), String(highlighted_after)
     )
 end
 
