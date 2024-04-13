@@ -346,4 +346,19 @@ end
             @test !CodeDiffs.issame(diff)
         end
     end
+
+    @testset "Tabs" begin
+        @testset "$t tab length" for t in (1, 4, 8)
+            tab_replacement = ' '^t
+            buf = IOBuffer()
+            chars = 'a':'m'
+            for i in eachindex(chars)
+                raw_str = join((chars[1:i-1]..., '\t', chars[i:end]...))
+                expected_str = join((chars[1:i-1]..., ' '^(t - mod(length(1:i-1), t)), chars[i:end]...))
+                CodeDiffs.print_str_with_tabs(buf, raw_str, tab_replacement)
+                str = String(take!(buf))
+                @test str == expected_str
+            end
+        end
+    end
 end
