@@ -1,12 +1,26 @@
 
-function print_columns(io, width, left_line, sep, right_line, empty_line, tab_replacement)
-    left_line  = replace(left_line,  '\t' => tab_replacement)
-    right_line = replace(right_line, '\t' => tab_replacement)
+function print_str_with_tabs(io::IO, str, tab_replacement)
+    # 'str' is expected to not have newlines
+    full_tab_len = length(tab_replacement)
+    str_pos = 1
+    column_pos = 1
+    while (tab_pos = findnext('\t', str, str_pos); !isnothing(tab_pos))
+        str_part_len = (tab_pos - 1) - str_pos
+        column_pos += str_part_len
+        tab_len = full_tab_len - mod(column_pos, full_tab_len)
+        print(io, @view(str[str_pos:tab_pos - 1]), @view(tab_replacement[1:tab_len]))
+        column_pos += tab_len
+        str_pos = tab_pos + 1
+    end
+    print(io, @view str[str_pos:end])
+end
 
+
+function print_columns(io, width, left_line, sep, right_line, empty_line, tab_replacement)
     wio = TextWidthLimiter(IOBuffer(), width)
     wio_ctx = IOContext(wio, io)
 
-    printstyled(wio_ctx, left_line)
+    print_str_with_tabs(wio_ctx, left_line, tab_replacement)
     left_len = wio.width
     printstyled(io, String(take!(wio)))
     if left_len < width
@@ -15,7 +29,7 @@ function print_columns(io, width, left_line, sep, right_line, empty_line, tab_re
 
     printstyled(io, sep)
 
-    printstyled(wio_ctx, right_line)
+    print_str_with_tabs(wio_ctx, right_line, tab_replacement)
     right_len = wio.width
     printstyled(io, String(take!(wio)))
     if right_len < width
@@ -79,6 +93,8 @@ function printstyled_code_line_diff(
     idx_before_next_ansi, ansi_seq = next_ansi_sequence(highlighted_left, 1, hl_length)
     highlighted_offset = 0
 
+    full_tab_len = length(tab_replacement)
+    column_pos = 1
     tmp_io = IOBuffer()
     prev_state = :same
     DeepDiffs.visitall(diff.diff) do idx, state, _
@@ -105,7 +121,15 @@ function printstyled_code_line_diff(
             c = xchars[idx]
         end
 
-        write(tmp_io, c == '\t' ? tab_replacement : c)
+        if c == '\t'
+            tab_len = full_tab_len - mod(column_pos - 1, full_tab_len)
+            write(tmp_io, @view(tab_replacement[1:tab_len]))
+            column_pos += tab_len
+        else
+            write(tmp_io, c)
+            column_pos += 1
+        end
+
         prev_state = state
     end
 
@@ -130,8 +154,6 @@ environment variable `"CODE_DIFFS_LINE_NUMBERS"`, which itself defaults to `fals
 """
 function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, line_numbers=nothing)
     line_numbers = !isnothing(line_numbers) ? line_numbers : parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
-
-    # TODO: `tab_width` shouldn't simply replace '\t' by spaces, but rather pad mod `tab_width`
 
     xlines = split(diff.highlighted_before, '\n')
     ylines = split(diff.highlighted_after, '\n')

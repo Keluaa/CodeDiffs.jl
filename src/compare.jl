@@ -65,7 +65,10 @@ function replace_llvm_module_name(code::AbstractString, function_name)
 end
 
 
-function compare_code(code₁::AbstractString, code₂::AbstractString, highlight_func; color=true)
+compare_code(code₁::AbstractString, code₂::AbstractString, highlight_func; kwargs...) =
+    compare_code(String(code₁), String(code₂), highlight_func; kwargs...)
+
+function compare_code(code₁::String, code₂::String, highlight_func; color=true)
     io_buf = IOBuffer()
     highlight_ctx = IOContext(io_buf, :color => true)
 
@@ -98,56 +101,71 @@ function compare_code(code₁::AbstractString, code₂::AbstractString, highligh
 end
 
 
-function compare_show(code₁, code₂; color=true, force_no_ansi=false)
+function show_as_string(a, color::Bool)
     io_buf = IOBuffer()
-    io_ctx = IOContext(io_buf, :color => false)
-    highlight_ctx = IOContext(io_buf, :color => true)
 
-    Base.show(io_ctx, MIME"text/plain"(), code₁)
-    code_str₁ = String(take!(io_buf))
-    force_no_ansi && (code_str₁ = replace(code_str₁, ANSI_REGEX => ""))
-    if !occursin('\n', code_str₁)
-        code_str₁ *= '\n'  # Hack to make sure `deepdiff` creates a `StringLineDiff`
-        needed_newline = true
-    else
-        needed_newline = false
-    end
+    Base.show(IOContext(io_buf, :color => false), MIME"text/plain"(), a)
+    a_str = String(take!(io_buf))
 
     if color
-        Base.show(highlight_ctx, MIME"text/plain"(), code₁)
-        code₁_colored = String(take!(io_buf)) * (needed_newline ? "\n" : "")
+        Base.show(IOContext(io_buf, :color => true), MIME"text/plain"(), a)
+        a_colored = String(take!(io_buf))
     else
-        code₁_colored = code_str₁
+        a_colored = a_str
     end
 
-    Base.show(io_ctx, MIME"text/plain"(), code₂)
-    code_str₂ = String(take!(io_buf))
-    force_no_ansi && (code_str₂ = replace(code_str₂, ANSI_REGEX => ""))
-    if !occursin('\n', code_str₂)
-        code_str₂ *= '\n'
-        needed_newline = true
-    else
-        needed_newline = false
-    end
+    return a_str, a_colored
+end
+
+
+function show_as_string(s::AbstractString, color::Bool)
+    io_buf = IOBuffer()
+
+    # For `AnnotatedString` => get the unannotated string
+    a_str = String(s)
 
     if color
-        Base.show(highlight_ctx, MIME"text/plain"(), code₂)
-        code₂_colored = String(take!(io_buf)) * (needed_newline ? "\n" : "")
+        # Use `print` instead of `Base.show(io, MIME"text/plain", s)` to avoid quotes and
+        # escape sequences.
+        print(IOContext(io_buf, :color => true), s)
+        a_colored = String(take!(io_buf))
     else
-        code₂_colored = code_str₂
+        a_colored = a_str
     end
 
-    if !needed_newline && endswith(code_str₁, '\n') && endswith(code_str₂, '\n') &&
-            count(==('\n'), code_str₁) > 1 && count(==('\n'), code_str₂) > 1
-        # Strip the last newline only if there is more than one, for the same reason as to
-        # why `needed_newline` exists.
-        code_str₁ = rstrip(==('\n'), code_str₁)
+    return a_str, a_colored
+end
+
+
+function compare_show(code₁, code₂; color=true, force_no_ansi=false)
+    code₁_str, code₁_colored = show_as_string(code₁, color)
+    code₂_str, code₂_colored = show_as_string(code₂, color)
+
+    if force_no_ansi
+        code₁_str = replace(code₁_str, ANSI_REGEX => "")
+        code₂_str = replace(code₂_str, ANSI_REGEX => "")
+    end
+
+    # Hack to make sure `deepdiff` creates a `StringLineDiff`
+    if !occursin('\n', code₁_str)
+        code₁_str *= '\n'
+        code₁_colored *= '\n'
+    end
+    if !occursin('\n', code₂_str)
+        code₂_str *= '\n'
+        code₂_colored *= '\n'
+    end
+
+    if endswith(code₁_str, '\n') && endswith(code₂_str, '\n') &&
+            count(==('\n'), code₁_str) > 1 && count(==('\n'), code₂_str) > 1
+        # Strip the last newline only if there is more than one
+        code₁_str = rstrip(==('\n'), code₁_str)
+        code₂_str = rstrip(==('\n'), code₂_str)
         code₁_colored = rstrip(==('\n'), code₁_colored)
-        code_str₂ = rstrip(==('\n'), code_str₂)
         code₂_colored = rstrip(==('\n'), code₂_colored)
     end
 
-    diff = CodeDiff(code_str₁, code_str₂, code₁_colored, code₂_colored)
+    diff = CodeDiff(code₁_str, code₂_str, code₁_colored, code₂_colored)
     optimize_line_changes!(diff)
     return diff
 end
@@ -438,8 +456,7 @@ If `prettify == true`, then
 is used to cleanup the AST. `lines == true` will keep the `LineNumberNode`s and `alias == true`
 will replace mangled names (or `gensym`s) by dummy names.
 
-`color == true` is special, as it places the stringified AST into a Markdown code block.
-See [`compare_ast(code₁::Markdown.MD, code₂::Markdown.MD)`](@ref).
+`color == true` is special, see [`compare_ast(code₁::AbstractString, code₂::AbstractString)`](@ref).
 """
 function compare_ast(code₁::Expr, code₂::Expr; color=true, prettify=true, lines=false, alias=false)
     if prettify
@@ -493,7 +510,7 @@ end
 """
     code_diff(::Val{:ast}, code₁, code₂; kwargs...)
 
-Compare AST in `code₁` and `code₂`, which can be `Expr`, `AbstractString` or `Markdown.MD`.
+Compare AST in `code₁` and `code₂`, which can be `Expr` or any `AbstractString`.
 """
 code_diff(::Val{:ast}, code₁, code₂; kwargs...) = compare_ast(code₁, code₂; kwargs...)
 
