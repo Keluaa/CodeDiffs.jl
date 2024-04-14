@@ -486,24 +486,29 @@ end
 
 """
     compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
-    compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
 
-[`CodeDiff`](@ref) between Julia code string, in the form of Markdown code blocks.
+[`CodeDiff`](@ref) between Julia code strings.
 
-Relies on the Markdown code highlighting from [`OhMyREPL.jl`](https://github.com/KristofferC/OhMyREPL.jl)
-to colorize Julia code.
+Before Julia v1.11, highlighting is done through [`OhMyREPL.jl`](https://github.com/KristofferC/OhMyREPL.jl)'s
+Markdown code block highlighting.
+
+Starting from Julia v1.11, [`JuliaSyntaxHighlighting.jl`](https://github.com/JuliaLang/JuliaSyntaxHighlighting.jl)
+is used instead, allowing further customization as styles can be customized through a
+[`'Faces.toml'`](https://docs.julialang.org/en/latest/stdlib/StyledStrings/#stdlib-styledstrings-face-toml)
+file.
 """
-function compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
-    if !haskey(Base.loaded_modules, OhMYREPL_PKG_ID)
-        @warn "OhMyREPL.jl is not loaded, AST highlighting will not work" maxlog=1
-    end
-    return compare_show(code₁, code₂; color, force_no_ansi=true)
-end
-
 function compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
-    code_md₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₁))
-    code_md₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₂))
-    return compare_ast(code_md₁, code_md₂; color)
+    @static if USE_STYLED_STRINGS
+        code_hl₁ = JuliaSyntaxHighlighting.highlight(code₁)
+        code_hl₂ = JuliaSyntaxHighlighting.highlight(code₂)
+    else
+        if !haskey(Base.loaded_modules, OhMYREPL_PKG_ID)
+            @warn "OhMyREPL.jl is not loaded, AST highlighting will not work" maxlog=1
+        end
+        code_hl₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₁))
+        code_hl₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₂))
+    end
+    return compare_show(code_hl₁, code_hl₂; color, force_no_ansi=true)
 end
 
 

@@ -39,11 +39,13 @@ macro no_overwrite_warning(expr)
 end
 
 
-# OhMyREPL is quite reluctant from loading its Markdown highlighting overload in a testing
-# environment. See https://github.com/KristofferC/OhMyREPL.jl/blob/b0071f5ee785a81ca1e69a561586ff270b4dc2bb/src/OhMyREPL.jl#L106
-prev = jl_options_overload(:isinteractive, Int8(1))
-@no_overwrite_warning using OhMyREPL
-jl_options_overload(:isinteractive, prev)
+@static if !CodeDiffs.USE_STYLED_STRINGS
+    # OhMyREPL is quite reluctant from loading its Markdown highlighting overload in a testing
+    # environment. See https://github.com/KristofferC/OhMyREPL.jl/blob/b0071f5ee785a81ca1e69a561586ff270b4dc2bb/src/OhMyREPL.jl#L106
+    prev = jl_options_overload(:isinteractive, Int8(1))
+    @no_overwrite_warning using OhMyREPL
+    jl_options_overload(:isinteractive, prev)
+end
 
 
 # Disable printing diffs to stdout by setting `ENV["TEST_PRINT_DIFFS"] = false`
@@ -291,7 +293,8 @@ end
             end
 
             diff = CodeDiffs.compare_ast(A, B; color=true)
-            @test_reference "references/a_vs_b_COLOR.jl_ast" display_str(diff; color=true, columns=120)
+            ref_file = CodeDiffs.USE_STYLED_STRINGS ? "a_vs_b_COLOR_STYLED_STR" : "a_vs_b_COLOR"
+            @test_reference "references/$ref_file.jl_ast" display_str(diff; color=true, columns=120)
 
             # Single line code should not cause any issues with DeepDiffs.jl
             diff = CodeDiffs.code_diff(Val(:ast), "1 + 2", "1 + 3"; color=false)

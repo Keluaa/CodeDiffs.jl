@@ -12,6 +12,9 @@ using Markdown
 using StringDistances
 using WidthLimitedIO
 
+const USE_STYLED_STRINGS = VERSION ≥ v"1.11-"
+@static USE_STYLED_STRINGS && using JuliaSyntaxHighlighting
+
 export @code_diff
 
 const ANSI_REGEX = r"(?>\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))+"
