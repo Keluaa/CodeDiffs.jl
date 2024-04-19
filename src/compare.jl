@@ -215,12 +215,19 @@ end
 
 
 function method_instance(sig, world)
+    @nospecialize(sig)
     @static if VERSION < v"1.10"
         mth_match = Base._which(sig, world)
     else
         mth_match = Base._which(sig; world)
     end
     return Core.Compiler.specialize_method(mth_match)
+end
+
+
+function method_instance(f, types, world)
+    @nospecialize(f, types)
+    return method_instance(Base.signature_type(f, types), world)
 end
 
 
@@ -500,10 +507,70 @@ function compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
     return compare_show(code₁, code₂; color, force_no_ansi=true)
 end
 
+
 function compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
     code_md₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₁))
     code_md₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₂))
     return compare_ast(code_md₁, code_md₂; color)
+end
+
+
+function method_to_ast(method::Method)
+    ast = CodeTracking.definition(Expr, method)
+    if isnothing(ast)
+        if !haskey(Base.loaded_modules, Revise_PKG_ID)
+            error("cannot retrieve the AST definition of `$(method.name)` as Revise.jl is not loaded")
+        else
+            error("could not retrieve the AST definition of `$(method.sig)` at world age $(method.primary_world)")
+        end
+    end
+    return ast
+end
+
+method_to_ast(mi::Core.MethodInstance) = method_to_ast(mi.def)
+
+function method_to_ast(f::Base.Callable, types::Type{<:Tuple}, world=Base.get_world_counter())
+    @nospecialize(f, types)
+    sig = Base.signature_type(f, types)
+    mi = method_instance(sig, world)
+    return method_to_ast(mi)
+end
+
+
+"""
+    compare_ast(
+        f₁::Base.Callable, types₁::Type{<:Tuple},
+        f₂::Base.Callable, types₂::Type{<:Tuple};
+        color=true, kwargs...
+    )
+
+Retrieve the AST for the definitions of the methods matching the calls to `f₁` and `f₂`
+using [`CodeTracking.jl`](https://github.com/timholy/CodeTracking.jl), then compare them.
+
+For `CodeTracking.jl` to work, [`Revise.jl`](https://github.com/timholy/Revise.jl) must be
+loaded.
+"""
+function compare_ast(
+    f₁::Base.Callable, types₁::Type{<:Tuple},
+    f₂::Base.Callable, types₂::Type{<:Tuple};
+    kwargs...
+)
+    @nospecialize(f₁, types₁, f₂, types₂)
+    code₁ = method_to_ast(f₁, types₁)
+    code₂ = method_to_ast(f₂, types₂)
+    return compare_ast(code₁, code₂; kwargs...)
+end
+
+
+function compare_ast(
+    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
+    kwargs...
+)
+    @nospecialize(f, types)
+    # While this does work if both versions of `f` are defined in the REPL at different
+    # lines, this isn't testable.
+    # This is here solely to have a homogenous interface.
+    error("Revise.jl does not keep track of previous definitions: cannot compare")
 end
 
 
@@ -537,6 +604,7 @@ code_diff(code₁, code₂; type::Symbol=:native, kwargs...) =
 code_diff(::Val{:native}, f₁, types₁, f₂, types₂; kwargs...) = compare_code_native(f₁, types₁, f₂, types₂; kwargs...)
 code_diff(::Val{:llvm},   f₁, types₁, f₂, types₂; kwargs...) = compare_code_llvm(f₁, types₁, f₂, types₂; kwargs...)
 code_diff(::Val{:typed},  f₁, types₁, f₂, types₂; kwargs...) = compare_code_typed(f₁, types₁, f₂, types₂; kwargs...)
+code_diff(::Val{:ast},    f₁, types₁, f₂, types₂; kwargs...) = compare_ast(f₁, types₁, f₂, types₂; kwargs...)
 
 code_diff(code₁::Tuple, code₂::Tuple; type::Symbol=:native, kwargs...) =
     code_diff(Val(type), code₁..., code₂...; kwargs...)

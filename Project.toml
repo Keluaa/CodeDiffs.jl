@@ -4,6 +4,7 @@ authors = ["Luc Briand <34173752+Keluaa@users.noreply.github.com> and contributo
 version = "1.0.0-DEV"
 
 [deps]
+CodeTracking = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
 DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -13,6 +14,7 @@ WidthLimitedIO = "b8c1c048-cf81-46c6-9da0-18c1d99e41f2"
 
 [compat]
 Aqua = "0.7"
+CodeTracking = "1"
 DeepDiffs = "1"
 InteractiveUtils = "1"
 MacroTools = "0.5"
@@ -29,7 +31,8 @@ DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 OhMyREPL = "5fb14364-9ced-5910-84b2-373655c76a03"
 ReferenceTests = "324d217c-45ce-50fc-942e-d289b448e8cf"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "InteractiveUtils", "OhMyREPL", "ReferenceTests", "Test"]
+test = ["Aqua", "InteractiveUtils", "OhMyREPL", "ReferenceTests", "Revise", "Test"]
