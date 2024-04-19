@@ -72,6 +72,15 @@ function next_ansi_sequence(str, idx, str_len)
 end
 
 
+const ANSI_DEFAULT_BKG = "\e[49m"
+const ANSI_RED_BKG = "\e[41m"
+const ANSI_GREEN_BKG = "\e[42m"
+
+const ANSI_DEFAULT_FGR = "\e[39m"
+const ANSI_RED_FGR = "\e[31m"
+const ANSI_GREEN_FGR = "\e[32m"
+
+
 function printstyled_code_line_diff(
     io::IO, diff::DeepDiffs.StringDiff, highlighted_left, removed_only::Bool,
     tab_replacement
@@ -80,9 +89,9 @@ function printstyled_code_line_diff(
     ychars = DeepDiffs.after(diff.diff)
 
     if get(io, :color, false)
-        default_bkg = "\e[49m"  # ANSI for the default background color
-        removed_bkg_color = removed_only ? "\e[41m" : ""  # ANSI for red background
-        added_bkg_color   = removed_only ? "" : "\e[42m"  # ANSI for green background
+        default_bkg = ANSI_DEFAULT_BKG
+        removed_bkg_color = removed_only ? ANSI_RED_BKG : ""
+        added_bkg_color   = removed_only ? "" : ANSI_GREEN_BKG
     else
         default_bkg = ""
         removed_bkg_color = ""
@@ -169,10 +178,17 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
         empty_line_num = ""
     end
 
-    sep_same       = " ┃ "
-    sep_removed    = "⟪┫ "
-    sep_added      = " ┣⟫"
-    sep_changed_to = "⟪╋⟫"
+    left_removed = "⟪"
+    right_added = "⟫"
+    if get(io, :color, false)
+        left_removed = ANSI_RED_FGR * left_removed * ANSI_DEFAULT_FGR
+        right_added = ANSI_GREEN_FGR * right_added * ANSI_DEFAULT_FGR
+    end
+
+    sep_same       =               " ┃ "
+    sep_removed    = left_removed * "┫ "
+    sep_added      =               " ┣" * right_added
+    sep_changed_to = left_removed * "╋" * right_added
 
     column_width = fld(width - length(sep_same), 2)
     column_width ≤ 5 && error("output terminal width ($width) is too small")
