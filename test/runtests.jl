@@ -1,8 +1,10 @@
+
 using Aqua
 using CodeDiffs
 using DeepDiffs
 using InteractiveUtils
 using ReferenceTests
+using Revise
 using Test
 
 
@@ -39,6 +41,22 @@ macro no_overwrite_warning(expr)
 end
 
 
+function eval_for_revise(str, path=tempname(), init=true)
+    open(path, "w") do file
+        println(file, str)
+    end
+
+    if init
+        Revise.includet(path)
+    else
+        main_pkg_data = Revise.pkgdatas[Base.PkgId(nothing, "Main")]
+        Revise.revise_file_now(main_pkg_data, path)
+    end
+
+    return path
+end
+
+
 # OhMyREPL is quite reluctant from loading its Markdown highlighting overload in a testing
 # environment. See https://github.com/KristofferC/OhMyREPL.jl/blob/b0071f5ee785a81ca1e69a561586ff270b4dc2bb/src/OhMyREPL.jl#L106
 prev = jl_options_overload(:isinteractive, Int8(1))
@@ -46,8 +64,8 @@ prev = jl_options_overload(:isinteractive, Int8(1))
 jl_options_overload(:isinteractive, prev)
 
 
-# Disable printing diffs to stdout by setting `ENV["TEST_PRINT_DIFFS"] = false`
-const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", "true"))
+# Enable printing diffs to stdout only in CI by default
+const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", get(ENV, "CI", "false")))
 const TEST_IO = TEST_PRINT_DIFFS ? stdout : IOContext(IOBuffer(), stdout)
 
 
@@ -117,8 +135,10 @@ end
     end
 
     @testset "Basic function" begin
+        eval_for_revise("""
         f1() = 1
         f2() = 2
+        """)
 
         @testset "Typed" begin
             diff = CodeDiffs.compare_code_typed(f1, Tuple{}, f1, Tuple{}; color=false)
@@ -148,6 +168,15 @@ end
             diff = CodeDiffs.compare_code_native(f1, Tuple{}, f2, Tuple{}; color=false)
             @test !CodeDiffs.issame(diff)
             @test diff == (@code_diff type=:native color=false f1() f2())
+        end
+
+        @testset "AST" begin
+            diff = CodeDiffs.compare_ast(f1, Tuple{}, f1, Tuple{}; color=false)
+            @test CodeDiffs.issame(diff)
+
+            diff = CodeDiffs.compare_ast(f1, Tuple{}, f2, Tuple{}; color=false)
+            @test !CodeDiffs.issame(diff)
+            @test diff == (@code_diff type=:ast color=false f1() f2())
         end
     end
 
@@ -220,6 +249,15 @@ end
                 println(TEST_IO)
             end
 
+            @testset "AST" begin
+                diff = CodeDiffs.compare_ast(f₁, args₁, f₂, args₂; color=true)
+                @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
+                @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
+                println(TEST_IO, "\nAST: $(nameof(f₁)) vs. $(nameof(f₂))")
+                printstyled(TEST_IO, display_str(diff; columns=120))
+                println(TEST_IO)
+            end
+
             @testset "Line numbers" begin
                 diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
@@ -232,11 +270,14 @@ end
         end
 
         @testset "f1" begin
+            eval_for_revise("""
             f() = 1
+            """)
             test_cmp_display(f, Tuple{}, f, Tuple{})
         end
 
         @testset "saxpy" begin
+            eval_for_revise("""
             function saxpy(r, a, x, y)
                 for i in eachindex(r)
                     r[i] = a * x[i] + y[i]
@@ -248,6 +289,7 @@ end
                     r[i] = a * x[i] + y[i]
                 end
             end
+            """)
 
             saxpy_args = Tuple{Vector{Int}, Int, Vector{Int}, Vector{Int}}
             test_cmp_display(saxpy, saxpy_args, saxpy_simd, saxpy_args)
@@ -311,10 +353,11 @@ end
     end
 
     @testset "World age" begin
-        @no_overwrite_warning @eval begin
-            f() = 1
+        @no_overwrite_warning begin
+            file_name = eval_for_revise("f() = 1")
             w₁ = Base.get_world_counter()
-            f() = 2
+
+            eval_for_revise("f() = 2", file_name, false)
             w₂ = Base.get_world_counter()
         end
 
@@ -344,6 +387,10 @@ end
 
             diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
             @test !CodeDiffs.issame(diff)
+        end
+
+        @testset "AST" begin
+            @test_throws ErrorException CodeDiffs.compare_ast(f, Tuple{}, w₁, w₁; color=false)
         end
     end
 
