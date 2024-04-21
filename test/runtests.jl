@@ -131,7 +131,7 @@ end
         @test occursin("#= file:42 =#", diff.before)
         diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=true, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
-        @test diff == (@code_diff type=:ast color=false e :(1+2))
+        @test diff == (@code_diff color=false :($e) :(1+2))
     end
 
     @testset "Basic function" begin
@@ -406,6 +406,56 @@ end
                 str = String(take!(buf))
                 @test str == expected_str
             end
+        end
+    end
+
+    @testset "@code_diff" begin
+        @static VERSION ≥ v"1.8-" && @testset "error" begin
+            @test_throws "not a function call" eval(:(@code_diff "f()" g()))
+            @test_throws "not a function call" eval(:(@code_diff f() "g()"))
+            @test_throws "not a function call" eval(:(@code_diff "f()" "g()"))
+            @test_throws "not a function call" eval(:(@code_diff a b))
+            @test_throws "`key=value`, got: a" eval(:(@code_diff a b c))
+        end
+
+        @testset "Keywords" begin
+            @testset "type=$t" for t in (:native, :llvm, :typed)
+                # `type` can be a variable
+                @code_diff type=t +(1, 2) +(2, 3)
+            end
+        end
+
+        @static VERSION ≥ v"1.9-" && @testset "Special calls" begin
+            # From 1.9 `@code_native` (& others) support dot calls
+            @test !CodeDiffs.issame(@code_diff identity.(1:3) identity(1:3))
+            @test !CodeDiffs.issame(@code_diff (x -> x + 1).(1:3) identity(1:3))
+
+            sum_args(a, b; c=1, d=2) = a + b + c + d
+            @test !CodeDiffs.issame(@code_diff sum_args(1, 2) sum_args(1, 2; c=3, d=4))
+
+            # Apparently `@code_*` does not support broadcasts with kwargs. This should be
+            # a common error with both mecros.
+            expected_error = nothing
+            try
+                eval(:(@code_native sum_args.(1:5, 2; c=4)))
+            catch e
+                expected_error = sprint(Base.showerror, e)
+            end
+
+            actual_error = nothing
+            try
+                eval(:(@code_diff sum_args.(1:5, 2; c=4) sum_args.(1:3, 2:5)))
+            catch e
+                actual_error = sprint(Base.showerror, e)
+            end
+            @test expected_error == actual_error
+        end
+
+        @testset "AST" begin
+            @test !CodeDiffs.issame(@code_diff :(1) :(2))
+            @test !CodeDiffs.issame(@code_diff :(1+2) :(2+2))
+            a = :(1+2)
+            @test !CodeDiffs.issame(@code_diff :($a) :(2+2))
         end
     end
 end
