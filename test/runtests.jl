@@ -407,6 +407,12 @@ end
                 @test str == expected_str
             end
         end
+
+        # Lines with changes use another code path for tabs alignment
+        diff = CodeDiffs.compare_show("\tabc\t123\n\tabc\t456", "\tabc\t126\n\tabc\t456")
+        diff_str = split(display_str(diff; color=false), '\n')
+        @test startswith(diff_str[1], "    abc 1")
+        @test startswith(diff_str[2], "    abc 4")
     end
 
     @testset "@code_diff" begin

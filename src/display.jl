@@ -5,9 +5,9 @@ function print_str_with_tabs(io::IO, str, tab_replacement)
     str_pos = 1
     column_pos = 1
     while (tab_pos = findnext('\t', str, str_pos); !isnothing(tab_pos))
-        str_part_len = (tab_pos - 1) - str_pos
+        str_part_len = (tab_pos - 1) - str_pos + 1
         column_pos += str_part_len
-        tab_len = full_tab_len - mod(column_pos, full_tab_len)
+        tab_len = full_tab_len - mod(column_pos - 1, full_tab_len)
         print(io, @view(str[str_pos:tab_pos - 1]), @view(tab_replacement[1:tab_len]))
         column_pos += tab_len
         str_pos = tab_pos + 1
