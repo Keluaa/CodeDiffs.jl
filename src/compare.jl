@@ -612,18 +612,68 @@ code_diff(code₁::Tuple, code₂::Tuple; type::Symbol=:native, kwargs...) =
 @specialize
 
 
+function replace_locals_by_gensyms(expr)
+    Base.isexpr(expr, :call) && expr.args[1] === :error     && return expr, Expr(:block)
+    Base.isexpr(expr, :call) && expr.args[1] === :code_diff && return Expr(:block), expr
+
+    call_expr = pop!(expr.args)
+    if !(Base.isexpr(call_expr, :call) && call_expr.args[1] === :code_diff)
+        error("expected call to `code_diff`, got: $call_expr")
+    end
+
+    locals = Symbol[]
+    locals = Dict{Symbol, Symbol}()
+    # Replace `a` or `(a, b)` in `local a = 1`. We suppose `expr` is the result of
+    # `InteractiveUtils.gen_call_with_extracted_types`, therefore there is less edge cases
+    # to care about.
+    expr = MacroTools.postwalk(expr) do e
+        !Base.isexpr(e, :local) && return e
+        assign = e.args[1]
+        !Base.isexpr(assign, :(=)) && error("unexpected `local` expression: $e")
+        if Base.isexpr(assign.args[1], :tuple)
+            l_vars = assign.args[1]
+            map!(l_vars.args, l_vars.args) do l
+                locals[l] = gensym(l)
+            end
+        elseif Base.isexpr(assign.args[1], :call)
+            # alias for dot function, already a gensym
+        else
+            l = assign.args[1]
+            assign.args[1] = locals[l] = gensym(l)
+        end
+        return Expr(:local, assign)
+    end
+
+    # We assume that all `locals` defined in `expr` are only used in the last expression,
+    # the `call(:code_diff, ...)`, which is true since `code_diff` starts with `code_`.
+    call_expr = MacroTools.postwalk(call_expr) do e
+        !(e isa Symbol) && return e
+        return get(locals, e, e)
+    end
+
+    if Base.isexpr(call_expr.args[2], :parameters)
+        !isempty(call_expr.args[2].args) && error("unexpected kwargs: $call_expr")
+        popat!(call_expr.args, 2)  # Remove the kwargs
+    end
+
+    return expr, call_expr
+end
+
+
 """
     @code_diff [type=:native] [option=value...] f₁(...) f₂(...)
-    @code_diff [type] [option=value...] a b
+    @code_diff [option=value...] :(expr₁) :(expr₂)
 
 Compare the methods called by the `f₁(...)` and `f₂(...)` expressions, and return a
 [`CodeDiff`](@ref).
-In the other form of `@code_diff`, `a` and `b` must be either variable names (`Symbol`s)
-or quoted expressions (e.g. `@code_diff :(1+2) :(2+3)`): in this case the difference type
-might be inferred automatically.
 
 `option`s are passed as key-word arguments to [`code_diff`](@ref) and then to the
 `compare_code_*` function for the given code `type`.
+
+In the other form of `@code_diff`, compare the `Expr`essions `expr₁` and `expr₂`, the `type`
+is inferred as `:ast`.
+To compare `Expr` in variables, use `@code_diff :(\$a) :(\$b)`, or call
+[`compare_ast`](@ref) directly.
 """
 macro code_diff(args...)
     length(args) < 2 && throw(ArgumentError("@code_diff takes at least 2 arguments"))
@@ -633,19 +683,40 @@ macro code_diff(args...)
     options = map(options) do option
         !(option isa Expr && option.head === :(=)) &&
             throw(ArgumentError("options must be in the form `key=value`, got: $option"))
-        return Expr(:kw, option.args[1], option.args[2])
+        return Expr(:kw, esc(option.args[1]), esc(option.args[2]))
     end
 
-    code₁, code₂ = map((code₁, code₂)) do code
-        (!(code isa Expr) || code.head === :quote) && return code
-        code.head !== :call && throw(ArgumentError("expected call expression, got: $code"))
-        # `f(a, b)` => `(f, Base.typesof(a, b))`
-        f = code.args[1]
-        f_args = :(Base.typesof($(code.args[2:end]...)))
-        return :($f, $f_args)
-    end
+    # Simple values such as `:(1)` are stored in a `QuoteNode`
+    code₁ isa QuoteNode && (code₁ = Expr(:quote, Expr(:block, code₁.value)))
+    code₂ isa QuoteNode && (code₂ = Expr(:quote, Expr(:block, code₂.value)))
 
-    call_expr = :($code_diff($code₁, $code₂; ))
-    append!(call_expr.args[2].args, options)
-    return esc(call_expr)
+    if Base.isexpr(code₁, :quote) && Base.isexpr(code₂, :quote)
+        code₁ = esc(code₁)
+        code₂ = esc(code₂)
+        call_code_diff = :($code_diff($code₁, $code₂; type=:ast))
+        append!(call_code_diff.args[2].args, options)
+        return call_code_diff
+    else
+        expr₁ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_diff, code₁)
+        expr₂ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_diff, code₂)
+
+        # `gen_call_with_extracted_types` will, to handle some specific calls, store some
+        # values in local variables with a fixed name. This is a problem as we might use
+        # the same variable name twice since we want to fuse `expr₁` and `expr₂`.
+        expr₁, call_expr₁ = replace_locals_by_gensyms(expr₁)
+        expr₂, call_expr₂ = replace_locals_by_gensyms(expr₂)
+
+        if Base.isexpr(call_expr₁, :call) && Base.isexpr(call_expr₂, :call)
+            # Fuse both calls to `code_diff`, into a single kwcall
+            call_code_diff = :($code_diff(
+                ($(call_expr₁.args[2:3]...),),
+                ($(call_expr₂.args[2:3]...),);
+            ))
+            append!(call_code_diff.args[2].args, options)
+        else
+            call_code_diff = call_expr₁  # `expr₁` or `expr₂` has an error expression
+        end
+
+        return MacroTools.flatten(Expr(:block, expr₁, expr₂, call_code_diff))
+    end
 end
