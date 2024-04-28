@@ -355,42 +355,41 @@ end
     @testset "World age" begin
         @no_overwrite_warning begin
             file_name = eval_for_revise("f() = 1")
-            w₁ = Base.get_world_counter()
+            world_1 = Base.get_world_counter()
 
             eval_for_revise("f() = 2", file_name, false)
-            w₂ = Base.get_world_counter()
+            world_2 = Base.get_world_counter()
         end
 
         @testset "Typed" begin
-            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2=world_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_typed(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2)
             @test !CodeDiffs.issame(diff)
             @test occursin("1", diff.before)
             @test occursin("2", diff.after)
+            @test diff == (@code_diff type=:typed color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
 
         @testset "LLVM" begin
-            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2=world_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2)
             @test !CodeDiffs.issame(diff)
             @test occursin("1", diff.before)
             @test occursin("2", diff.after)
+            @test diff == (@code_diff type=:llvm color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
 
         @testset "Native" begin
-            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2=world_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.compare_code_native(f, Tuple{}, f, Tuple{}; color=false, debuginfo=:none, world_1, world_2)
             @test !CodeDiffs.issame(diff)
-        end
-
-        @testset "AST" begin
-            @test_throws ErrorException CodeDiffs.compare_ast(f, Tuple{}, w₁, w₁; color=false)
+            @test diff == (@code_diff type=:native color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
     end
 
@@ -422,9 +421,10 @@ end
             @test_throws "not a function call" eval(:(@code_diff "f()" "g()"))
             @test_throws "not a function call" eval(:(@code_diff a b))
             @test_throws "`key=value`, got: a" eval(:(@code_diff a b c))
+            @test_throws "world age" eval(:(@code_diff type=:ast world_1=1 f() f()))
         end
 
-        @testset "Keywords" begin
+        @testset "Kwargs" begin
             @testset "type=$t" for t in (:native, :llvm, :typed)
                 # `type` can be a variable
                 @code_diff type=t +(1, 2) +(2, 3)

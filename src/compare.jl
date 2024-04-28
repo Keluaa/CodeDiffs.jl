@@ -171,49 +171,6 @@ function compare_show(code₁, code₂; color=true, force_no_ansi=false)
 end
 
 
-"""
-    compare_code_native(code₁, code₂; color=true)
-
-Return a [`CodeDiff`](@ref) between `code₁` and `code₂`.
-Codes are cleaned-up with [`replace_llvm_module_name`](@ref) beforehand.
-
-If `color == true`, then both codes are highlighted using `InteractiveUtils.print_native`.
-"""
-function compare_code_native(code₁::AbstractString, code₂::AbstractString; color=true)
-    return compare_code(code₁, code₂, InteractiveUtils.print_native; color)
-end
-
-
-"""
-    compare_code_native(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
-
-Call `InteractiveUtils.code_native(f₁, types₁)` and `InteractiveUtils.code_native(f₂, types₂)`
-and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_native`.
-"""
-function compare_code_native(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-
-    io_buf = IOBuffer()
-    io_ctx = IOContext(io_buf, :color => false)
-
-    InteractiveUtils.code_native(io_ctx, f₁, types₁; kwargs...)
-    code₁ = String(take!(io_buf))
-
-    InteractiveUtils.code_native(io_buf, f₂, types₂; kwargs...)
-    code₂ = String(take!(io_buf))
-
-    return compare_code_native(code₁, code₂; color)
-end
-
-
 function method_instance(sig, world)
     @nospecialize(sig)
     @static if VERSION < v"1.10"
@@ -232,21 +189,34 @@ end
 
 
 """
-    compare_code_native(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
+    compare_code_native(code₁, code₂; color=true)
 
-Similar to [`compare_code_native(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
+Return a [`CodeDiff`](@ref) between `code₁` and `code₂`.
+Codes are cleaned-up with [`replace_llvm_module_name`](@ref) beforehand.
+
+If `color == true`, then both codes are highlighted using `InteractiveUtils.print_native`.
 """
-function compare_code_native(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, dump_module=true, syntax=:intel, raw=false, debuginfo=:default, binary=false
+function compare_code_native(code₁::AbstractString, code₂::AbstractString; color=true)
+    return compare_code(code₁, code₂, InteractiveUtils.print_native; color)
+end
+
+
+function code_native(f::Base.Callable, types::Type{<:Tuple}, ::Nothing; kwargs...)
+    @nospecialize(f, types)
+    io_buf = IOBuffer()
+    io_ctx = IOContext(io_buf, :color => false)
+    InteractiveUtils.code_native(io_ctx, f, types; kwargs...)
+    return String(take!(io_buf))
+end
+
+
+function code_native(
+    f::Base.Callable, types::Type{<:Tuple}, world::Integer;
+    dump_module=true, syntax=:intel, raw=false, debuginfo=:default, binary=false
 )
     @nospecialize(f, types)
+    mi = method_instance(f, types, world)
 
-    sig = Base.signature_type(f, types)
     @static if VERSION < v"1.10"
         params = Base.CodegenParams(debug_info_kind=Cint(0))
     else
@@ -260,29 +230,42 @@ function compare_code_native(
     end
 
     # See `InteractiveUtils._dump_function`
-    mi_f₁ = method_instance(sig, world₁)
     @static if VERSION < v"1.10"
-        f₁_str = InteractiveUtils._dump_function_linfo_native(mi_f₁, world₁, false, syntax, debuginfo, binary)
+        f_str = InteractiveUtils._dump_function_linfo_native(mi, world, false, syntax, debuginfo, binary)
     else
         if dump_module
-            f₁_str = InteractiveUtils._dump_function_native_assembly(mi_f₁, world₁, false, syntax, debuginfo, binary, raw, params)
+            f_str = InteractiveUtils._dump_function_native_assembly(mi, world, false, syntax, debuginfo, binary, raw, params)
         else
-            f₁_str = InteractiveUtils._dump_function_native_disassembly(mi_f₁, world₁, false, syntax, debuginfo, binary)
+            f_str = InteractiveUtils._dump_function_native_disassembly(mi, world, false, syntax, debuginfo, binary)
         end
     end
 
-    mi_f₂ = method_instance(sig, world₂)
-    @static if VERSION < v"1.10"
-        f₂_str = InteractiveUtils._dump_function_linfo_native(mi_f₂, world₂, false, syntax, debuginfo, binary)
-    else
-        if dump_module
-            f₂_str = InteractiveUtils._dump_function_native_assembly(mi_f₂, world₂, false, syntax, debuginfo, binary, raw, params)
-        else
-            f₂_str = InteractiveUtils._dump_function_native_disassembly(mi_f₂, world₂, false, syntax, debuginfo, binary)
-        end
-    end
+    return f_str
+end
 
-    return compare_code_native(f₁_str, f₂_str; color)
+
+"""
+    compare_code_native(
+        f₁::Base.Callable, types₁::Type{<:Tuple},
+        f₂::Base.Callable, types₂::Type{<:Tuple};
+        color=true, world_1=nothing, world_2=nothing, kwargs...
+    )
+
+Call `InteractiveUtils.code_native(f₁, types₁)` and `InteractiveUtils.code_native(f₂, types₂)`
+and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_native`.
+
+`world_1` and `world_2` are the world ages in which to compare `f₁` and `f₂`.
+It defaults to the current world age.
+"""
+function compare_code_native(
+    f₁::Base.Callable, types₁::Type{<:Tuple},
+    f₂::Base.Callable, types₂::Type{<:Tuple};
+    color=true, world_1=nothing, world_2=nothing, kwargs...
+)
+    @nospecialize(f₁, types₁, f₂, types₂)
+    code₁ = code_native(f₁, types₁, world_1; kwargs...)
+    code₂ = code_native(f₂, types₂, world_2; kwargs...)
+    return compare_code_native(code₁, code₂; color)
 end
 
 
@@ -299,52 +282,22 @@ function compare_code_llvm(code₁::AbstractString, code₂::AbstractString; col
 end
 
 
-"""
-    compare_code_llvm(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
-
-Call `InteractiveUtils.code_llvm(f₁, types₁)` and `InteractiveUtils.code_llvm(f₂, types₂)`
-and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_llvm`.
-"""
-function compare_code_llvm(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-
+function code_llvm(f::Base.Callable, types::Type{<:Tuple}, ::Nothing; kwargs...)
+    @nospecialize(f, types)
     io_buf = IOBuffer()
     io_ctx = IOContext(io_buf, :color => false)
-
-    InteractiveUtils.code_llvm(io_ctx, f₁, types₁; kwargs...)
-    code₁ = String(take!(io_buf))
-
-    InteractiveUtils.code_llvm(io_buf, f₂, types₂; kwargs...)
-    code₂ = String(take!(io_buf))
-
-    return compare_code_llvm(code₁, code₂; color)
+    InteractiveUtils.code_llvm(io_ctx, f, types; kwargs...)
+    return String(take!(io_buf))
 end
 
 
-"""
-    compare_code_llvm(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
-
-Similar to [`compare_code_llvm(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
-"""
-function compare_code_llvm(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, raw=false, dump_module=false, optimize=true, debuginfo=:default
+function code_llvm(
+    f::Base.Callable, types::Type{<:Tuple}, world::Integer;
+    raw=false, dump_module=false, optimize=true, debuginfo=:default
 )
     @nospecialize(f, types)
+    mi = method_instance(f, types, world)
 
-    sig = Base.signature_type(f, types)
     @static if VERSION < v"1.10"
         params = Base.CodegenParams(debug_info_kind=Cint(0))
     else
@@ -358,29 +311,42 @@ function compare_code_llvm(
     end
 
     # See `InteractiveUtils._dump_function`
-    mi_f₁ = method_instance(sig, world₁)
     @static if VERSION < v"1.10"
-        f₁_str = InteractiveUtils._dump_function_linfo_llvm(
-            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
+        f_str = InteractiveUtils._dump_function_linfo_llvm(
+            mi, world, false, !raw, dump_module, optimize, debuginfo, params
         )
     else
-        f₁_str = InteractiveUtils._dump_function_llvm(
-            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
+        f_str = InteractiveUtils._dump_function_llvm(
+            mi, world, false, !raw, dump_module, optimize, debuginfo, params
         )
     end
 
-    mi_f₂ = method_instance(sig, world₂)
-    @static if VERSION < v"1.10"
-        f₂_str = InteractiveUtils._dump_function_linfo_llvm(
-            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    else
-        f₂_str = InteractiveUtils._dump_function_llvm(
-            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    end
+    return f_str
+end
 
-    return compare_code_llvm(f₁_str, f₂_str; color)
+
+"""
+    compare_code_llvm(
+        f₁::Base.Callable, types₁::Type{<:Tuple},
+        f₂::Base.Callable, types₂::Type{<:Tuple};
+        color=true, world_1=nothing, world_2=nothing, kwargs...
+    )
+
+Call `InteractiveUtils.code_llvm(f₁, types₁)` and `InteractiveUtils.code_llvm(f₂, types₂)`
+and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_llvm`.
+
+`world_1` and `world_2` are the world ages in which to compare `f₁` and `f₂`.
+It defaults to the current world age.
+"""
+function compare_code_llvm(
+    f₁::Base.Callable, types₁::Type{<:Tuple},
+    f₂::Base.Callable, types₂::Type{<:Tuple};
+    color=true, world_1=nothing, world_2=nothing, kwargs...
+)
+    @nospecialize(f₁, types₁, f₂, types₂)
+    code₁ = code_llvm(f₁, types₁, world_1; kwargs...)
+    code₂ = code_llvm(f₂, types₂, world_2; kwargs...)
+    return compare_code_llvm(code₁, code₂; color)
 end
 
 
@@ -399,56 +365,40 @@ function compare_code_typed(
 end
 
 
+function code_typed(f, types, world=nothing; kwargs...)
+    @nospecialize(f, types)
+    if isnothing(world)
+        code_info = Base.code_typed(f, types; kwargs...)
+    else
+        code_info = Base.code_typed(f, types; world, kwargs...)
+    end
+    return only(code_info)
+end
+
+
 """
     compare_code_typed(
         f₁::Base.Callable, types₁::Type{<:Tuple},
         f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
+        color=true, world_1=nothing, world_2=nothing, kwargs...
     )
 
 Call `Base.code_typed(f₁, types₁)` and `Base.code_typed(f₂, types₂)` and return their
 [`CodeDiff`](@ref). `kwargs` are passed to `code_typed`.
 
 Both function calls should only match a single method.
+
+`world_1` and `world_2` are the world ages in which to compare `f₁` and `f₂`.
+It defaults to the current world age.
 """
 function compare_code_typed(
     f₁::Base.Callable, types₁::Type{<:Tuple},
     f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
+    color=true, world_1=nothing, world_2=nothing, kwargs...
 )
     @nospecialize(f₁, types₁, f₂, types₂)
-
-    code_info₁ = Base.code_typed(f₁, types₁; kwargs...)
-    code_info₁ = only(code_info₁)
-
-    code_info₂ = Base.code_typed(f₂, types₂; kwargs...)
-    code_info₂ = only(code_info₂)
-
-    return compare_code_typed(code_info₁, code_info₂; color)
-end
-
-
-"""
-    compare_code_typed(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
-
-Similar to [`compare_code_typed(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
-"""
-function compare_code_typed(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, kwargs...
-)
-    @nospecialize(f, types)
-
-    code_info₁ = Base.code_typed(f, types; world=world₁, kwargs...)
-    code_info₁ = only(code_info₁)
-
-    code_info₂ = Base.code_typed(f, types; world=world₂, kwargs...)
-    code_info₂ = only(code_info₂)
-
+    code_info₁ = code_typed(f₁, types₁, world_1; kwargs...)
+    code_info₂ = code_typed(f₂, types₂, world_2; kwargs...)
     return compare_code_typed(code_info₁, code_info₂; color)
 end
 
@@ -553,24 +503,16 @@ loaded.
 function compare_ast(
     f₁::Base.Callable, types₁::Type{<:Tuple},
     f₂::Base.Callable, types₂::Type{<:Tuple};
-    kwargs...
+    world_1=nothing, world_2=nothing, kwargs...
 )
     @nospecialize(f₁, types₁, f₂, types₂)
+    if !isnothing(world_1) || !isnothing(world_2)
+        error("world age comparison is not possible with AST, as Revise.jl does not track \
+               of definitions across ages")
+    end
     code₁ = method_to_ast(f₁, types₁)
     code₂ = method_to_ast(f₂, types₂)
     return compare_ast(code₁, code₂; kwargs...)
-end
-
-
-function compare_ast(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    kwargs...
-)
-    @nospecialize(f, types)
-    # While this does work if both versions of `f` are defined in the REPL at different
-    # lines, this isn't testable.
-    # This is here solely to have a homogenous interface.
-    error("Revise.jl does not keep track of previous definitions: cannot compare")
 end
 
 
