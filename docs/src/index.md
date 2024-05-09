@@ -11,9 +11,7 @@ Supports:
  - native CPU assembly (output of `@code_native`, highlighted by `InteractiveUtils.print_native`)
  - LLVM IR (output of `@code_llvm`, highlighted by `InteractiveUtils.print_llvm`)
  - Typed Julia IR (output of `@code_typed`, highlighted through the `Base.show` method of `Core.CodeInfo`)
- - Julia AST (an `Expr`), highlighting is done with:
-   - OhMyREPL.jl's Julia syntax highlighting in Markdown code blocks
-   - (Julia ≥ v1.11) [JuliaSyntaxHighlighting.jl](https://github.com/JuliaLang/JuliaSyntaxHighlighting.jl)
+ - Julia AST (an `Expr`), highlighting is done with OhMyREPL.jl's Julia syntax highlighting in Markdown code blocks
 
 The [`@code_diff`](@ref) macro is the main entry point. If possible, the code type will be
 detected automatically, otherwise add e.g. `type=:llvm` for LLVM IR comparison:
@@ -56,29 +54,42 @@ julia> @code_diff type=:llvm debuginfo=:none color=false f1(1) f2(1)
 5 }                                    ┃ }                                   5
 ```
 
-# Main functions
+# Comparison entry points
 
 ```@docs
-CodeDiff
-compare_code_native
-compare_code_llvm
-compare_code_typed
-compare_ast
-code_diff(::Any, ::Any)
-code_diff(::Val{:ast}, ::Any, ::Any)
 @code_diff
+code_diff
+code_for_diff
+CodeDiff
 ```
 
-# Display functions
+# Code fetching
+
+```@docs
+code_native
+code_llvm
+code_typed
+code_ast
+get_code
+```
+
+# Highlighting
+
+```@docs
+code_highlighter
+```
+
+# Cleanup
+
+```@docs
+cleanup_code
+replace_llvm_module_name
+LLVM_MODULE_NAME_REGEX
+```
+
+# Diff display
 
 ```@docs
 optimize_line_changes!
-replace_llvm_module_name
 side_by_side_diff
-```
-
-# Internals
-
-```@docs
-LLVM_MODULE_NAME_REGEX
 ```
