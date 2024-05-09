@@ -470,5 +470,11 @@ end
             a = :(1+2)
             @test !CodeDiffs.issame(@code_diff :($a) :(2+2))
         end
+
+        @testset "Extra" begin
+            d1 = @code_diff extra_1=(; type=:native, debuginfo=:none) extra_2=(; type=:llvm, color=false) f() f()
+            d2 = @code_diff type_1=:native debuginfo_1=:none type_2=:llvm color_2=false f() f()
+            @test d1 == d2
+        end
     end
 end
