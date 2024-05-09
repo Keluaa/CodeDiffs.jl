@@ -1,689 +1,172 @@
 
-"""
-    LLVM_MODULE_NAME_REGEX
-
-Should match the LLVM module of any function which does not have any of `'",;-` or spaces
-in it.
-
-It is `'get_function_name'`, in `'julia/src/codegen.cpp'` which builds the function name
-for the LLVM module used to get the function code. The regex is built to match any output
-from that function.
-Since the `'globalUniqueGeneratedNames'` counter (the number at the end of the module name)
-is incremented at each call to `'get_function_name'`, and since `code_llvm` or `code_native`
-forces a compilation, it should be guaranteed that the match with the highest number at
-the end is the name of our function in `code`.
-"""
-const LLVM_MODULE_NAME_REGEX = r"(?>julia|japi3|japi1)_([^\"\s,;\-']*)_(\d+)"
-
-
-"""
-    replace_llvm_module_name(code::AbstractString)
-
-Remove in `code` the trailing numbers in the LLVM module names, e.g. `"julia_f_2007" => "f"`.
-This allows to remove false differences when comparing raw code, since each call to
-`code_native` (or `code_llvm`) triggers a new compilation using an unique LLVM module name,
-therefore each consecutive call is different even though the actual code does not
-change.
-
-```jldoctest; setup = :(using InteractiveUtils; import CodeDiffs: replace_llvm_module_name)
-julia> f() = 1
-f (generic function with 1 method)
-
-julia> buf = IOBuffer();
-
-julia> code_native(buf, f, Tuple{})  # Equivalent to `@code_native f()`
-
-julia> code₁ = String(take!(buf));
-
-julia> code_native(buf, f, Tuple{})
-
-julia> code₂ = String(take!(buf));
-
-julia> code₁ == code₂  # Different LLVM module names...
-false
-
-julia> replace_llvm_module_name(code₁) == replace_llvm_module_name(code₂)  # ...but same code
-true
-```
-"""
-replace_llvm_module_name(code::AbstractString) = replace(code, LLVM_MODULE_NAME_REGEX => s"\1")
-
-
-"""
-    replace_llvm_module_name(code::AbstractString, function_name)
-
-Replace only LLVM module names for `function_name`.
-"""
-function replace_llvm_module_name(code::AbstractString, function_name)
-    function_name = string(function_name)
-    if Sys.islinux() && startswith(function_name, '@')
-        # See 'get_function_name' in 'julia/src/codegen.cpp'
-        function_name = function_name[2:end]
-    end
-    func_re = Regex("(?>julia|japi3|japi1)_\\Q$(function_name)\\E_(\\d+)")
-    return replace(code, func_re => function_name)
+function should_strip_last_newline(str)
+    # Strip the last newline only if there is more than one
+    f_pos = findfirst('\n', str)
+    isnothing(f_pos) && return false
+    nl_end = endswith(str, '\n')
+    return nl_end && f_pos < length(str)
 end
 
 
-compare_code(code₁::AbstractString, code₂::AbstractString, highlight_func; kwargs...) =
-    compare_code(String(code₁), String(code₂), highlight_func; kwargs...)
-
-function compare_code(code₁::String, code₂::String, highlight_func; color=true)
-    io_buf = IOBuffer()
-    highlight_ctx = IOContext(io_buf, :color => true)
-
-    code₁ = replace_llvm_module_name(code₁)
-    if color
-        highlight_func(highlight_ctx, code₁)
-        code₁_colored = String(take!(io_buf))
-    else
-        code₁_colored = code₁
-    end
-
-    code₂ = replace_llvm_module_name(code₂)
-    if color
-        highlight_func(highlight_ctx, code₂)
-        code₂_colored = String(take!(io_buf))
-    else
-        code₂_colored = code₂
-    end
-
-    if endswith(code₁, '\n') && endswith(code₂, '\n')
+function code_diff(code₁::String, code₂::String, code₁_colored::String, code₂_colored::String)
+    if should_strip_last_newline(code₁) && should_strip_last_newline(code₂)
         code₁ = rstrip(==('\n'), code₁)
-        code₁_colored = rstrip(==('\n'), code₁_colored)
         code₂ = rstrip(==('\n'), code₂)
+        code₁_colored = rstrip(==('\n'), code₁_colored)
         code₂_colored = rstrip(==('\n'), code₂_colored)
+    else
+        # Hack to make sure `deepdiff` creates a `StringLineDiff`
+        if !occursin('\n', code₁)
+            code₁ *= '\n'
+            code₁_colored *= '\n'
+        end
+
+        if !occursin('\n', code₂)
+            code₂ *= '\n'
+            code₂_colored *= '\n'
+        end
     end
 
     diff = CodeDiff(code₁, code₂, code₁_colored, code₂_colored)
-    optimize_line_changes!(diff)
-    return diff
-end
 
-
-function show_as_string(a, color::Bool)
-    io_buf = IOBuffer()
-
-    Base.show(IOContext(io_buf, :color => false), MIME"text/plain"(), a)
-    a_str = String(take!(io_buf))
-
-    if color
-        Base.show(IOContext(io_buf, :color => true), MIME"text/plain"(), a)
-        a_colored = String(take!(io_buf))
-    else
-        a_colored = a_str
-    end
-
-    return a_str, a_colored
-end
-
-
-function show_as_string(s::AbstractString, color::Bool)
-    io_buf = IOBuffer()
-
-    # For `AnnotatedString` => get the unannotated string
-    a_str = String(s)
-
-    if color
-        # Use `print` instead of `Base.show(io, MIME"text/plain", s)` to avoid quotes and
-        # escape sequences.
-        print(IOContext(io_buf, :color => true), s)
-        a_colored = String(take!(io_buf))
-    else
-        a_colored = a_str
-    end
-
-    return a_str, a_colored
-end
-
-
-function compare_show(code₁, code₂; color=true, force_no_ansi=false)
-    code₁_str, code₁_colored = show_as_string(code₁, color)
-    code₂_str, code₂_colored = show_as_string(code₂, color)
-
-    if force_no_ansi
-        code₁_str = replace(code₁_str, ANSI_REGEX => "")
-        code₂_str = replace(code₂_str, ANSI_REGEX => "")
-    end
-
-    # Hack to make sure `deepdiff` creates a `StringLineDiff`
-    if !occursin('\n', code₁_str)
-        code₁_str *= '\n'
-        code₁_colored *= '\n'
-    end
-    if !occursin('\n', code₂_str)
-        code₂_str *= '\n'
-        code₂_colored *= '\n'
-    end
-
-    if endswith(code₁_str, '\n') && endswith(code₂_str, '\n') &&
-            count(==('\n'), code₁_str) > 1 && count(==('\n'), code₂_str) > 1
-        # Strip the last newline only if there is more than one
-        code₁_str = rstrip(==('\n'), code₁_str)
-        code₂_str = rstrip(==('\n'), code₂_str)
-        code₁_colored = rstrip(==('\n'), code₁_colored)
-        code₂_colored = rstrip(==('\n'), code₂_colored)
-    end
-
-    diff = CodeDiff(code₁_str, code₂_str, code₁_colored, code₂_colored)
     optimize_line_changes!(diff)
     return diff
 end
 
 
 """
-    compare_code_native(code₁, code₂; color=true)
+    code_diff(args₁::Tuple, args₂::Tuple; extra_1=(;), extra_2=(;), kwargs...)
 
-Return a [`CodeDiff`](@ref) between `code₁` and `code₂`.
-Codes are cleaned-up with [`replace_llvm_module_name`](@ref) beforehand.
+Function equivalent to [`@code_diff`](@ref)`(extra_1, extra_2, kwargs..., args₁, args₂)`.
+`kwargs` are common to both sides, while `extra_1` and `extra_2` are passed to
+[`code_for_diff`](@ref) only with `args₁` and `args₂` respectively.
 
-If `color == true`, then both codes are highlighted using `InteractiveUtils.print_native`.
+```jldoctest; setup=(f() = 1; g() = 2)
+julia> diff_1 = @code_diff debuginfo_1=:none f() g();
+
+julia> diff_2 = code_diff((f, Tuple{}), (g, Tuple{}); extra_1=(; debuginfo=:none));
+
+julia> diff_1 == diff_2
+true
+```
 """
-function compare_code_native(code₁::AbstractString, code₂::AbstractString; color=true)
-    return compare_code(code₁, code₂, InteractiveUtils.print_native; color)
+function code_diff(args₁::Tuple, args₂::Tuple; extra_1=(;), extra_2=(;), kwargs...)
+    code₁, hl_code₁ = code_for_diff(args₁...; kwargs..., extra_1...)
+    code₂, hl_code₂ = code_for_diff(args₂...; kwargs..., extra_2...)
+    return code_diff(code₁, code₂, hl_code₁, hl_code₂)
 end
 
 
 """
-    compare_code_native(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
+    code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+    code_for_diff(expr::Expr; type=:ast, color=true, kwargs...)
 
-Call `InteractiveUtils.code_native(f₁, types₁)` and `InteractiveUtils.code_native(f₂, types₂)`
-and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_native`.
+Fetches the code of `f` with [`get_code(Val(type), f, types; kwargs...)`](@ref), cleans it
+up with [`cleanup_code(Val(type), code)`](@ref) and highlights it using the appropriate
+[`code_highlighter(Val(type))`](@ref).
+The result is two `String`s: one without and the other with highlighting.
 """
-function compare_code_native(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-
-    io_buf = IOBuffer()
-    io_ctx = IOContext(io_buf, :color => false)
-
-    InteractiveUtils.code_native(io_ctx, f₁, types₁; kwargs...)
-    code₁ = String(take!(io_buf))
-
-    InteractiveUtils.code_native(io_buf, f₂, types₂; kwargs...)
-    code₂ = String(take!(io_buf))
-
-    return compare_code_native(code₁, code₂; color)
-end
-
-
-function method_instance(sig, world)
-    @nospecialize(sig)
-    @static if VERSION < v"1.10"
-        mth_match = Base._which(sig, world)
-    else
-        mth_match = Base._which(sig; world)
-    end
-    return Core.Compiler.specialize_method(mth_match)
-end
-
-
-function method_instance(f, types, world)
+function code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
     @nospecialize(f, types)
-    return method_instance(Base.signature_type(f, types), world)
+    code = get_code(Val(type), f, types; kwargs...)
+    return code_for_diff(code, Val(type), color)
 end
 
-
-"""
-    compare_code_native(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
-
-Similar to [`compare_code_native(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
-"""
-function compare_code_native(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, dump_module=true, syntax=:intel, raw=false, debuginfo=:default, binary=false
-)
-    @nospecialize(f, types)
-
-    sig = Base.signature_type(f, types)
-    @static if VERSION < v"1.10"
-        params = Base.CodegenParams(debug_info_kind=Cint(0))
-    else
-        params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
+function code_for_diff(expr::Union{Expr, QuoteNode}; type=:ast, color=true, kwargs...)
+    if type !== :ast
+        throw(ArgumentError("wrong type for `$(typeof(expr))`: `$type`, expected `:ast`"))
     end
-
-    if debuginfo === :default
-        debuginfo = :source
-    elseif debuginfo !== :source && debuginfo !== :none
-        throw(ArgumentError("'debuginfo' must be either :source or :none"))
-    end
-
-    # See `InteractiveUtils._dump_function`
-    mi_f₁ = method_instance(sig, world₁)
-    @static if VERSION < v"1.10"
-        f₁_str = InteractiveUtils._dump_function_linfo_native(mi_f₁, world₁, false, syntax, debuginfo, binary)
-    else
-        if dump_module
-            f₁_str = InteractiveUtils._dump_function_native_assembly(mi_f₁, world₁, false, syntax, debuginfo, binary, raw, params)
-        else
-            f₁_str = InteractiveUtils._dump_function_native_disassembly(mi_f₁, world₁, false, syntax, debuginfo, binary)
-        end
-    end
-
-    mi_f₂ = method_instance(sig, world₂)
-    @static if VERSION < v"1.10"
-        f₂_str = InteractiveUtils._dump_function_linfo_native(mi_f₂, world₂, false, syntax, debuginfo, binary)
-    else
-        if dump_module
-            f₂_str = InteractiveUtils._dump_function_native_assembly(mi_f₂, world₂, false, syntax, debuginfo, binary, raw, params)
-        else
-            f₂_str = InteractiveUtils._dump_function_native_disassembly(mi_f₂, world₂, false, syntax, debuginfo, binary)
-        end
-    end
-
-    return compare_code_native(f₁_str, f₂_str; color)
+    code = code_ast(expr; kwargs...)
+    return code_for_diff(code, Val(type), color)
 end
 
+function code_for_diff(code, type::Val, color)
+    code = cleanup_code(type, code)
 
-"""
-    compare_code_llvm(code₁, code₂; color=true)
-
-Return a [`CodeDiff`](@ref) between `code₁` and `code₂`.
-Codes are cleaned-up with [`replace_llvm_module_name`](@ref) beforehand.
-
-If `color == true`, then both codes are highlighted using `InteractiveUtils.print_llvm`.
-"""
-function compare_code_llvm(code₁::AbstractString, code₂::AbstractString; color=true)
-    return compare_code(code₁, code₂, InteractiveUtils.print_llvm; color)
-end
-
-
-"""
-    compare_code_llvm(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
-
-Call `InteractiveUtils.code_llvm(f₁, types₁)` and `InteractiveUtils.code_llvm(f₂, types₂)`
-and return their [`CodeDiff`](@ref). `kwargs` are passed to `code_llvm`.
-"""
-function compare_code_llvm(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-
-    io_buf = IOBuffer()
-    io_ctx = IOContext(io_buf, :color => false)
-
-    InteractiveUtils.code_llvm(io_ctx, f₁, types₁; kwargs...)
-    code₁ = String(take!(io_buf))
-
-    InteractiveUtils.code_llvm(io_buf, f₂, types₂; kwargs...)
-    code₂ = String(take!(io_buf))
-
-    return compare_code_llvm(code₁, code₂; color)
-end
-
-
-"""
-    compare_code_llvm(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
-
-Similar to [`compare_code_llvm(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
-"""
-function compare_code_llvm(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, raw=false, dump_module=false, optimize=true, debuginfo=:default
-)
-    @nospecialize(f, types)
-
-    sig = Base.signature_type(f, types)
-    @static if VERSION < v"1.10"
-        params = Base.CodegenParams(debug_info_kind=Cint(0))
-    else
-        params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
-    end
-
-    if debuginfo === :default
-        debuginfo = :source
-    elseif debuginfo !== :source && debuginfo !== :none
-        throw(ArgumentError("'debuginfo' must be either :source or :none"))
-    end
-
-    # See `InteractiveUtils._dump_function`
-    mi_f₁ = method_instance(sig, world₁)
-    @static if VERSION < v"1.10"
-        f₁_str = InteractiveUtils._dump_function_linfo_llvm(
-            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    else
-        f₁_str = InteractiveUtils._dump_function_llvm(
-            mi_f₁, world₁, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    end
-
-    mi_f₂ = method_instance(sig, world₂)
-    @static if VERSION < v"1.10"
-        f₂_str = InteractiveUtils._dump_function_linfo_llvm(
-            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    else
-        f₂_str = InteractiveUtils._dump_function_llvm(
-            mi_f₂, world₂, false, !raw, dump_module, optimize, debuginfo, params
-        )
-    end
-
-    return compare_code_llvm(f₁_str, f₂_str; color)
-end
-
-
-"""
-    compare_code_typed(code_info₁::Pair, code_info₂::Pair; color=true)
-    compare_code_typed(code_info₁::Core.CodeInfo, code_info₂::Core.CodeInfo; color=true)
-
-Return a [`CodeDiff`](@ref) between `code_info₁` and `code_info₂`.
-
-If `color == true`, then both codes are highlighted.
-"""
-function compare_code_typed(
-    code_info₁::CI, code_info₂::CI; color=true
-) where {CI <: Union{Core.CodeInfo, Pair{Core.CodeInfo, <:Type}}}
-    return compare_show(code_info₁, code_info₂; color)
-end
-
-
-"""
-    compare_code_typed(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
-
-Call `Base.code_typed(f₁, types₁)` and `Base.code_typed(f₂, types₂)` and return their
-[`CodeDiff`](@ref). `kwargs` are passed to `code_typed`.
-
-Both function calls should only match a single method.
-"""
-function compare_code_typed(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    color=true, kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-
-    code_info₁ = Base.code_typed(f₁, types₁; kwargs...)
-    code_info₁ = only(code_info₁)
-
-    code_info₂ = Base.code_typed(f₂, types₂; kwargs...)
-    code_info₂ = only(code_info₂)
-
-    return compare_code_typed(code_info₁, code_info₂; color)
-end
-
-
-"""
-    compare_code_typed(
-        f::Base.Callable, types::Type{<:Tuple}, world₁, world₂;
-        color=true, kwargs...
-    )
-
-Similar to [`compare_code_typed(f₁, types₁, f₂, types₂)`](@ref), but as a difference
-between `f` in world ages `world₁` and `world₂`.
-"""
-function compare_code_typed(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    color=true, kwargs...
-)
-    @nospecialize(f, types)
-
-    code_info₁ = Base.code_typed(f, types; world=world₁, kwargs...)
-    code_info₁ = only(code_info₁)
-
-    code_info₂ = Base.code_typed(f, types; world=world₂, kwargs...)
-    code_info₂ = only(code_info₂)
-
-    return compare_code_typed(code_info₁, code_info₂; color)
-end
-
-
-"""
-    compare_ast(code₁::Expr, code₂::Expr; color=true, prettify=true, lines=false, alias=false)
-
-A [`CodeDiff`](@ref) between `code₁` and `code₂`, relying on the native display of Julia AST.
-
-If `prettify == true`, then
-[`MacroTools.prettify(code; lines, alias)`](https://fluxml.ai/MacroTools.jl/stable/utilities/#MacroTools.prettify)
-is used to cleanup the AST. `lines == true` will keep the `LineNumberNode`s and `alias == true`
-will replace mangled names (or `gensym`s) by dummy names.
-
-`color == true` is special, see [`compare_ast(code₁::AbstractString, code₂::AbstractString)`](@ref).
-"""
-function compare_ast(code₁::Expr, code₂::Expr; color=true, prettify=true, lines=false, alias=false)
-    if prettify
-        code₁ = MacroTools.prettify(code₁; lines, alias)
-        code₂ = MacroTools.prettify(code₂; lines, alias)
-    end
-
-    # Placing the `Expr`s in blocks is required to have a multiline display
-    code₁ = MacroTools.block(code₁)
-    code₂ = MacroTools.block(code₂)
+    code_str = sprint(code_highlighter(type), code; context=(:color => false,))
+    code_str = replace(code_str, ANSI_REGEX => "")  # Make sure there is no decorations
 
     if color
-        io_buf = IOBuffer()
-
-        print(io_buf, code₁)
-        code_str₁ = String(take!(io_buf))
-
-        print(io_buf, code₂)
-        code_str₂ = String(take!(io_buf))
-
-        return compare_ast(code_str₁, code_str₂)
+        code_highlighted = sprint(code_highlighter(type), code; context=(:color => true,))
     else
-        return compare_show(code₁, code₂; color=false)
-    end
-end
-
-
-"""
-    compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
-    compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
-
-[`CodeDiff`](@ref) between Julia code string, in the form of Markdown code blocks.
-
-Relies on the Markdown code highlighting from [`OhMyREPL.jl`](https://github.com/KristofferC/OhMyREPL.jl)
-to colorize Julia code.
-"""
-function compare_ast(code₁::Markdown.MD, code₂::Markdown.MD; color=true)
-    if !haskey(Base.loaded_modules, OhMYREPL_PKG_ID)
-        @warn "OhMyREPL.jl is not loaded, AST highlighting will not work" maxlog=1
-    end
-    return compare_show(code₁, code₂; color, force_no_ansi=true)
-end
-
-
-function compare_ast(code₁::AbstractString, code₂::AbstractString; color=true)
-    code_md₁ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₁))
-    code_md₂ = Markdown.MD(Markdown.julia, Markdown.Code("julia", code₂))
-    return compare_ast(code_md₁, code_md₂; color)
-end
-
-
-function method_to_ast(method::Method)
-    ast = CodeTracking.definition(Expr, method)
-    if isnothing(ast)
-        if !haskey(Base.loaded_modules, Revise_PKG_ID)
-            error("cannot retrieve the AST definition of `$(method.name)` as Revise.jl is not loaded")
-        else
-            error("could not retrieve the AST definition of `$(method.sig)` at world age $(method.primary_world)")
-        end
-    end
-    return ast
-end
-
-method_to_ast(mi::Core.MethodInstance) = method_to_ast(mi.def)
-
-function method_to_ast(f::Base.Callable, types::Type{<:Tuple}, world=Base.get_world_counter())
-    @nospecialize(f, types)
-    sig = Base.signature_type(f, types)
-    mi = method_instance(sig, world)
-    return method_to_ast(mi)
-end
-
-
-"""
-    compare_ast(
-        f₁::Base.Callable, types₁::Type{<:Tuple},
-        f₂::Base.Callable, types₂::Type{<:Tuple};
-        color=true, kwargs...
-    )
-
-Retrieve the AST for the definitions of the methods matching the calls to `f₁` and `f₂`
-using [`CodeTracking.jl`](https://github.com/timholy/CodeTracking.jl), then compare them.
-
-For `CodeTracking.jl` to work, [`Revise.jl`](https://github.com/timholy/Revise.jl) must be
-loaded.
-"""
-function compare_ast(
-    f₁::Base.Callable, types₁::Type{<:Tuple},
-    f₂::Base.Callable, types₂::Type{<:Tuple};
-    kwargs...
-)
-    @nospecialize(f₁, types₁, f₂, types₂)
-    code₁ = method_to_ast(f₁, types₁)
-    code₂ = method_to_ast(f₂, types₂)
-    return compare_ast(code₁, code₂; kwargs...)
-end
-
-
-function compare_ast(
-    f::Base.Callable, types::Type{<:Tuple}, world₁::Integer, world₂::Integer;
-    kwargs...
-)
-    @nospecialize(f, types)
-    # While this does work if both versions of `f` are defined in the REPL at different
-    # lines, this isn't testable.
-    # This is here solely to have a homogenous interface.
-    error("Revise.jl does not keep track of previous definitions: cannot compare")
-end
-
-
-"""
-    code_diff(::Val{:ast}, code₁, code₂; kwargs...)
-
-Compare AST in `code₁` and `code₂`, which can be `Expr` or any `AbstractString`.
-"""
-code_diff(::Val{:ast}, code₁, code₂; kwargs...) = compare_ast(code₁, code₂; kwargs...)
-
-code_diff(::Val{:native}, code₁::AbstractString, code₂::AbstractString; kwargs...) =
-    compare_code(code₁, code₂, InteractiveUtils.print_native; kwargs...)
-code_diff(::Val{:llvm},   code₁::AbstractString, code₂::AbstractString; kwargs...) =
-    compare_code(code₁, code₂, InteractiveUtils.print_llvm; kwargs...)
-code_diff(::Val{:typed},  code₁::AbstractString, code₂::AbstractString; kwargs...) =
-    compare_code(code₁, code₂, identity; kwargs...)
-
-"""
-    code_diff(::Val{type}, f₁, types₁, f₂, types₂; kwargs...)
-    code_diff(::Val{type}, code₁, code₂; kwargs...)
-    code_diff(args...; type=:native, kwargs...)
-
-Dispatch to [`compare_code_native`](@ref), [`compare_code_llvm`](@ref),
-[`compare_code_typed`](@ref) or [`compare_ast`](@ref) depending on `type`.
-"""
-code_diff(code₁, code₂; type::Symbol=:native, kwargs...) =
-    code_diff(Val(type), code₁, code₂; kwargs...)
-
-@nospecialize
-
-code_diff(::Val{:native}, f₁, types₁, f₂, types₂; kwargs...) = compare_code_native(f₁, types₁, f₂, types₂; kwargs...)
-code_diff(::Val{:llvm},   f₁, types₁, f₂, types₂; kwargs...) = compare_code_llvm(f₁, types₁, f₂, types₂; kwargs...)
-code_diff(::Val{:typed},  f₁, types₁, f₂, types₂; kwargs...) = compare_code_typed(f₁, types₁, f₂, types₂; kwargs...)
-code_diff(::Val{:ast},    f₁, types₁, f₂, types₂; kwargs...) = compare_ast(f₁, types₁, f₂, types₂; kwargs...)
-
-code_diff(code₁::Tuple, code₂::Tuple; type::Symbol=:native, kwargs...) =
-    code_diff(Val(type), code₁..., code₂...; kwargs...)
-
-@specialize
-
-
-function replace_locals_by_gensyms(expr)
-    Base.isexpr(expr, :call) && expr.args[1] === :error     && return expr, Expr(:block)
-    Base.isexpr(expr, :call) && expr.args[1] === :code_diff && return Expr(:block), expr
-
-    call_expr = pop!(expr.args)
-    if !(Base.isexpr(call_expr, :call) && call_expr.args[1] === :code_diff)
-        error("expected call to `code_diff`, got: $call_expr")
+        code_highlighted = code_str
     end
 
-    locals = Symbol[]
-    locals = Dict{Symbol, Symbol}()
-    # Replace `a` or `(a, b)` in `local a = 1`. We suppose `expr` is the result of
-    # `InteractiveUtils.gen_call_with_extracted_types`, therefore there is less edge cases
-    # to care about.
-    expr = MacroTools.postwalk(expr) do e
-        !Base.isexpr(e, :local) && return e
-        assign = e.args[1]
-        !Base.isexpr(assign, :(=)) && error("unexpected `local` expression: $e")
-        if Base.isexpr(assign.args[1], :tuple)
-            l_vars = assign.args[1]
-            map!(l_vars.args, l_vars.args) do l
-                locals[l] = gensym(l)
-            end
-        elseif Base.isexpr(assign.args[1], :call)
-            # alias for dot function, already a gensym
-        else
-            l = assign.args[1]
-            assign.args[1] = locals[l] = gensym(l)
-        end
-        return Expr(:local, assign)
-    end
-
-    # We assume that all `locals` defined in `expr` are only used in the last expression,
-    # the `call(:code_diff, ...)`, which is true since `code_diff` starts with `code_`.
-    call_expr = MacroTools.postwalk(call_expr) do e
-        !(e isa Symbol) && return e
-        return get(locals, e, e)
-    end
-
-    if Base.isexpr(call_expr.args[2], :parameters)
-        !isempty(call_expr.args[2].args) && error("unexpected kwargs: $call_expr")
-        popat!(call_expr.args, 2)  # Remove the kwargs
-    end
-
-    return expr, call_expr
+    return code_str, code_highlighted
 end
 
 
 """
-    @code_diff [type=:native] [option=value...] f₁(...) f₂(...)
+    @code_diff [type=:native] [color=true] [option=value...] f₁(...) f₂(...)
     @code_diff [option=value...] :(expr₁) :(expr₂)
 
-Compare the methods called by the `f₁(...)` and `f₂(...)` expressions, and return a
-[`CodeDiff`](@ref).
+Compare the methods called by the `f₁(...)` and `f₂(...)` or the expressions `expr₁` and
+`expr₂`, then return a [`CodeDiff`](@ref).
 
-`option`s are passed as key-word arguments to [`code_diff`](@ref) and then to the
-`compare_code_*` function for the given code `type`.
+`option`s are passed to [`get_code`](@ref). Option names ending with `_1` or `_2` are passed
+to the call of `get_code` for `f₁` and `f₂` respectively. They can also be packed into
+`extra_1` and `extra_2`.
 
-In the other form of `@code_diff`, compare the `Expr`essions `expr₁` and `expr₂`, the `type`
-is inferred as `:ast`.
-To compare `Expr` in variables, use `@code_diff :(\$a) :(\$b)`, or call
-[`compare_ast`](@ref) directly.
+To compare `Expr` in variables, use `@code_diff :(\$a) :(\$b)`.
+
+```julia
+# Default comparison
+@code_diff type=:native f() g()
+
+# No debuginfo for `f()` and `g()`
+@code_diff type=:native debuginfo=:none f() g()
+
+# No debuginfo for `f()`
+@code_diff type=:native debuginfo_1=:none f() g()
+
+# No debuginfo for `g()`
+@code_diff type=:native debuginfo_2=:none f() g()
+
+# Options can be passed from variables with `extra_1` and `extra_2`
+opts = (; debuginfo=:none, world=Base.get_world_counter())
+@code_diff type=:native extra_1=opts extra_2=opts f() g()
+
+# `type` and `color` can also be made different in each side
+@code_diff type_1=:native type_2=:llvm f() f()
+```
 """
 macro code_diff(args...)
-    length(args) < 2 && throw(ArgumentError("@code_diff takes at least 2 arguments"))
+    length(args) < 2 && return :(throw(ArgumentError("@code_diff takes at least 2 arguments")))
     options = args[1:end-2]
     code₁, code₂ = args[end-1:end]
 
-    options = map(options) do option
-        !(option isa Expr && option.head === :(=)) &&
-            throw(ArgumentError("options must be in the form `key=value`, got: $option"))
-        return Expr(:kw, esc(option.args[1]), esc(option.args[2]))
+    # 2 ways to pass kwargs to a specific side: `extra_1=(; kwargs...)` or `<opt>_1=val`/`<opt>_2=val`
+    # otherwise it is an option common to both sides.
+    options₁ = Expr[]
+    options₂ = Expr[]
+    for option in options
+        if !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
+            opt_error = "options must be in the form `key=value`, got: `$option`"
+            return :(throw(ArgumentError($opt_error)))
+        end
+
+        opt_name = option.args[1]::Symbol
+        if opt_name in (:extra_1, :extra_2)
+            opt_splat = Expr(:..., esc(option.args[2]))
+            if opt_name === :extra_1
+                push!(options₁, opt_splat)
+            else
+                push!(options₂, opt_splat)
+            end
+        else
+            opt_name_str = String(opt_name)
+            has_suffix = endswith(opt_name_str, r"_[12]")
+            opt_name = has_suffix ? Symbol(opt_name_str[1:end-2]) : opt_name
+            kw_option = Expr(:kw, opt_name, esc(option.args[2]))
+            if endswith(opt_name_str, "_1")
+                push!(options₁, kw_option)
+            elseif endswith(opt_name_str, "_2")
+                push!(options₂, kw_option)
+            else
+                push!(options₁, kw_option)
+                push!(options₂, kw_option)
+            end
+        end
     end
 
     # Simple values such as `:(1)` are stored in a `QuoteNode`
@@ -693,30 +176,34 @@ macro code_diff(args...)
     if Base.isexpr(code₁, :quote) && Base.isexpr(code₂, :quote)
         code₁ = esc(code₁)
         code₂ = esc(code₂)
-        call_code_diff = :($code_diff($code₁, $code₂; type=:ast))
-        append!(call_code_diff.args[2].args, options)
-        return call_code_diff
+        code_for_diff₁ = :($code_for_diff($code₁; type=:ast, $(options₁...)))
+        code_for_diff₂ = :($code_for_diff($code₂; type=:ast, $(options₂...)))
     else
-        expr₁ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_diff, code₁)
-        expr₂ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_diff, code₂)
+        # `code_for_diff`'s name must start with `code` in order to replicate the behavior
+        # of the other `@code_*` macros.
+        code_for_diff₁ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_for_diff, code₁)
+        code_for_diff₂ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_for_diff, code₂)
 
-        # `gen_call_with_extracted_types` will, to handle some specific calls, store some
-        # values in local variables with a fixed name. This is a problem as we might use
-        # the same variable name twice since we want to fuse `expr₁` and `expr₂`.
-        expr₁, call_expr₁ = replace_locals_by_gensyms(expr₁)
-        expr₂, call_expr₂ = replace_locals_by_gensyms(expr₂)
-
-        if Base.isexpr(call_expr₁, :call) && Base.isexpr(call_expr₂, :call)
-            # Fuse both calls to `code_diff`, into a single kwcall
-            call_code_diff = :($code_diff(
-                ($(call_expr₁.args[2:3]...),),
-                ($(call_expr₂.args[2:3]...),);
-            ))
-            append!(call_code_diff.args[2].args, options)
-        else
-            call_code_diff = call_expr₁  # `expr₁` or `expr₂` has an error expression
+        if Base.isexpr(code_for_diff₁, :call) && code_for_diff₁.args[1] === :error
+            return code_for_diff₁
+        elseif Base.isexpr(code_for_diff₂, :call) && code_for_diff₂.args[1] === :error
+            return code_for_diff₂
         end
 
-        return MacroTools.flatten(Expr(:block, expr₁, expr₂, call_code_diff))
+        # `gen_call_with_extracted_types` adds kwargs inconsistently so we do it ourselves
+        args₁ = Base.isexpr(code_for_diff₁, :call) ? code_for_diff₁.args : code_for_diff₁.args[end].args
+        args₂ = Base.isexpr(code_for_diff₂, :call) ? code_for_diff₂.args : code_for_diff₂.args[end].args
+        !Base.isexpr(args₁[2], :parameters) && insert!(args₁, 2, Expr(:parameters))
+        !Base.isexpr(args₂[2], :parameters) && insert!(args₂, 2, Expr(:parameters))
+        append!(args₁[2].args, options₁)
+        append!(args₂[2].args, options₂)
+    end
+
+    return quote
+        let
+            local code₁, hl_code₁ = $code_for_diff₁
+            local code₂, hl_code₂ = $code_for_diff₂
+            code_diff(code₁, code₂, hl_code₁, hl_code₂)
+        end
     end
 end

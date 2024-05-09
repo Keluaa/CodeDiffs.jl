@@ -114,11 +114,11 @@ end
     end
 
     @testset "AST" begin
-        diff = CodeDiffs.compare_ast(:(1+2), :(1+2); color=false, prettify=false, lines=false, alias=false)
+        diff = CodeDiffs.code_diff((:(1+2),), (:(1+2),); type=:ast, color=false, prettify=false, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
         @test diff.before == diff.highlighted_before == "quote\n    1 + 2\nend"
 
-        diff = CodeDiffs.compare_ast(:(1+2), :(1+3); color=false, prettify=false, lines=false, alias=false)
+        diff = CodeDiffs.code_diff((:(1+2),), (:(1+3),); type=:ast, color=false, prettify=false, lines=false, alias=false)
         @test !CodeDiffs.issame(diff)
         @test length(DeepDiffs.added(diff)) == length(DeepDiffs.removed(diff)) == 1
 
@@ -126,10 +126,10 @@ end
             $(LineNumberNode(42, :file))
             1+2
         end
-        diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=false, lines=true, alias=false)
+        diff = CodeDiffs.code_diff((e,), (:(1+2),); type=:ast, color=false, prettify=false, lines=true, alias=false)
         @test !CodeDiffs.issame(diff)
         @test occursin("#= file:42 =#", diff.before)
-        diff = CodeDiffs.compare_ast(e, :(1+2); color=false, prettify=true, lines=false, alias=false)
+        diff = CodeDiffs.code_diff((e,), (:(1+2),); type=:ast, color=false, prettify=true, lines=false, alias=false)
         @test CodeDiffs.issame(diff)
         @test diff == (@code_diff color=false :($e) :(1+2))
     end
@@ -141,40 +141,40 @@ end
         """)
 
         @testset "Typed" begin
-            diff = CodeDiffs.compare_code_typed(f1, Tuple{}, f1, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f1, Tuple{}); type=:typed, color=false)
             @test CodeDiffs.issame(diff)
-    
-            diff = CodeDiffs.compare_code_typed(f1, Tuple{}, f2, Tuple{}; color=false)
+
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f2, Tuple{}); type=:typed, color=false)
             @test !CodeDiffs.issame(diff)
             @test length(DeepDiffs.added(diff)) == length(DeepDiffs.removed(diff)) == 1
             @test diff == (@code_diff type=:typed color=false f1() f2())
         end
 
         @testset "LLVM" begin
-            diff = CodeDiffs.compare_code_llvm(f1, Tuple{}, f1, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f1, Tuple{}); type=:llvm, color=false)
             @test CodeDiffs.issame(diff)
             @test !occursin(r"julia_f1", diff.before)  # LLVM module names should have been cleaned up
-    
-            diff = CodeDiffs.compare_code_llvm(f1, Tuple{}, f2, Tuple{}; color=false)
+
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f2, Tuple{}); type=:llvm, color=false)
             @test !CodeDiffs.issame(diff)
             @test diff == (@code_diff type=:llvm color=false f1() f2())
         end
 
         @testset "Native" begin
-            diff = CodeDiffs.compare_code_native(f1, Tuple{}, f1, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f1, Tuple{}); type=:native, color=false)
             @test CodeDiffs.issame(diff)
             @test !occursin(r"julia_f1", diff.before)  # LLVM module names should have been cleaned up
 
-            diff = CodeDiffs.compare_code_native(f1, Tuple{}, f2, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f2, Tuple{}); type=:native, color=false)
             @test !CodeDiffs.issame(diff)
             @test diff == (@code_diff type=:native color=false f1() f2())
         end
 
         @testset "AST" begin
-            diff = CodeDiffs.compare_ast(f1, Tuple{}, f1, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f1, Tuple{}); type=:ast, color=false)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_ast(f1, Tuple{}, f2, Tuple{}; color=false)
+            diff = CodeDiffs.code_diff((f1, Tuple{}), (f2, Tuple{}); type=:ast, color=false)
             @test !CodeDiffs.issame(diff)
             @test diff == (@code_diff type=:ast color=false f1() f2())
         end
@@ -199,7 +199,7 @@ end
             "test2"
         end
 
-        diff = CodeDiffs.compare_ast(A, B; color=false)
+        diff = CodeDiffs.code_diff((A,), (B,); type=:ast, color=false)
         @test !CodeDiffs.issame(diff)
         @test length(DeepDiffs.added(diff)) == 8
         @test length(DeepDiffs.changed(diff)) == 4
@@ -221,16 +221,16 @@ end
     @testset "Display" begin
         function test_cmp_display(f₁, args₁, f₂, args₂)
             @testset "Typed" begin
-                diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=true)
+                diff = CodeDiffs.code_diff((f₁, args₁), (f₂, args₂); type=:typed, color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 println(TEST_IO, "\nTyped: $(nameof(f₁)) vs. $(nameof(f₂))")
                 printstyled(TEST_IO, display_str(diff; columns=120))
                 println(TEST_IO)
             end
-
+ 
             @testset "LLVM" begin
-                diff = CodeDiffs.compare_code_llvm(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
+                diff = CodeDiffs.code_diff((f₁, args₁), (f₂, args₂); type=:llvm, color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_llvm(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
@@ -240,7 +240,7 @@ end
             end
 
             @testset "Native" begin
-                diff = CodeDiffs.compare_code_native(f₁, args₁, f₂, args₂; color=true, debuginfo=:none)
+                diff = CodeDiffs.code_diff((f₁, args₁), (f₂, args₂); type=:native, color=true, debuginfo=:none)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 @test rstrip(@io2str InteractiveUtils.print_native(IOContext(::IO, :color => true), diff.before)) == diff.highlighted_before
@@ -250,7 +250,7 @@ end
             end
 
             @testset "AST" begin
-                diff = CodeDiffs.compare_ast(f₁, args₁, f₂, args₂; color=true)
+                diff = CodeDiffs.code_diff((f₁, args₁), (f₂, args₂); type=:ast, color=true)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 @test !endswith(diff.before, '\n') && !endswith(diff.after, '\n')
                 println(TEST_IO, "\nAST: $(nameof(f₁)) vs. $(nameof(f₂))")
@@ -259,7 +259,7 @@ end
             end
 
             @testset "Line numbers" begin
-                diff = CodeDiffs.compare_code_typed(f₁, args₁, f₂, args₂; color=false)
+                diff = CodeDiffs.code_diff((f₁, args₁), (f₂, args₂); type=:typed, color=false)
                 @test findfirst(CodeDiffs.ANSI_REGEX, diff.before) === nothing
                 withenv("CODE_DIFFS_LINE_NUMBERS" => true) do
                     println(TEST_IO, "\nTyped + line numbers: $(nameof(f₁)) vs. $(nameof(f₂))")
@@ -312,7 +312,7 @@ end
                 "test2"
             end
 
-            diff = CodeDiffs.compare_ast(A, B; color=false)
+            diff = CodeDiffs.code_diff((A,), (B,); type=:ast, color=false)
 
             check_diff_display_order(diff, [
                 "quote"    => "quote",
@@ -332,11 +332,13 @@ end
                 @test_reference "references/a_vs_b_LINES.jl_ast" display_str(diff; color=false, columns=120)
             end
 
-            diff = CodeDiffs.compare_ast(A, B; color=true)
+            diff = CodeDiffs.code_diff((A,), (B,); type=:ast, color=true)
             @test_reference "references/a_vs_b_COLOR.jl_ast" display_str(diff; color=true, columns=120)
 
             # Single line code should not cause any issues with DeepDiffs.jl
-            diff = CodeDiffs.code_diff(Val(:ast), "1 + 2", "1 + 3"; color=false)
+            a = "1 + 2"
+            b = "1 + 3"
+            diff = CodeDiffs.code_diff(a, b, a, b)
             @test length(CodeDiffs.added(diff)) == length(CodeDiffs.removed(diff)) == 1
         end
     end
@@ -355,42 +357,44 @@ end
     @testset "World age" begin
         @no_overwrite_warning begin
             file_name = eval_for_revise("f() = 1")
-            w₁ = Base.get_world_counter()
+            world_1 = Base.get_world_counter()
 
             eval_for_revise("f() = 2", file_name, false)
-            w₂ = Base.get_world_counter()
+            world_2 = Base.get_world_counter()
         end
 
+        extra_1 = (; world=world_1)
+        extra_2 = (; world=world_2)
+
         @testset "Typed" begin
-            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:typed, color=false, debuginfo=:none, extra_1, extra_2=extra_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_typed(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:typed, color=false, debuginfo=:none, extra_1, extra_2)
             @test !CodeDiffs.issame(diff)
             @test occursin("1", diff.before)
             @test occursin("2", diff.after)
+            @test diff == (@code_diff type=:typed color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
 
         @testset "LLVM" begin
-            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:llvm, color=false, debuginfo=:none, extra_1, extra_2=extra_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_llvm(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:llvm, color=false, debuginfo=:none, extra_1, extra_2)
             @test !CodeDiffs.issame(diff)
             @test occursin("1", diff.before)
             @test occursin("2", diff.after)
+            @test diff == (@code_diff type=:llvm color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
 
         @testset "Native" begin
-            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₁; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:native, color=false, debuginfo=:none, extra_1, extra_2=extra_1)
             @test CodeDiffs.issame(diff)
 
-            diff = CodeDiffs.compare_code_native(f, Tuple{}, w₁, w₂; color=false, debuginfo=:none)
+            diff = CodeDiffs.code_diff((f, Tuple{}), (f, Tuple{}); type=:native, color=false, debuginfo=:none, extra_1, extra_2)
             @test !CodeDiffs.issame(diff)
-        end
-
-        @testset "AST" begin
-            @test_throws ErrorException CodeDiffs.compare_ast(f, Tuple{}, w₁, w₁; color=false)
+            @test diff == (@code_diff type=:native color=false debuginfo=:none world_1=world_1 world_2=world_2 f() f())
         end
     end
 
@@ -409,7 +413,9 @@ end
         end
 
         # Lines with changes use another code path for tabs alignment
-        diff = CodeDiffs.compare_show("\tabc\t123\n\tabc\t456", "\tabc\t126\n\tabc\t456")
+        a = "\tabc\t123\n\tabc\t456"
+        b = "\tabc\t126\n\tabc\t456"
+        diff = CodeDiffs.code_diff(a, b, a, b)
         diff_str = split(display_str(diff; color=false), '\n')
         @test startswith(diff_str[1], "    abc 1")
         @test startswith(diff_str[2], "    abc 4")
@@ -417,14 +423,15 @@ end
 
     @testset "@code_diff" begin
         @static VERSION ≥ v"1.8-" && @testset "error" begin
-            @test_throws "not a function call" eval(:(@code_diff "f()" g()))
-            @test_throws "not a function call" eval(:(@code_diff f() "g()"))
-            @test_throws "not a function call" eval(:(@code_diff "f()" "g()"))
-            @test_throws "not a function call" eval(:(@code_diff a b))
-            @test_throws "`key=value`, got: a" eval(:(@code_diff a b c))
+            @test_throws "not a function call" @code_diff "f()" g()
+            @test_throws "not a function call" @code_diff f() "g()"
+            @test_throws "not a function call" @code_diff "f()" "g()"
+            @test_throws "not a function call" @code_diff a b
+            @test_throws "`key=value`, got: `a`" @code_diff a b c
+            @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
         end
 
-        @testset "Keywords" begin
+        @testset "Kwargs" begin
             @testset "type=$t" for t in (:native, :llvm, :typed)
                 # `type` can be a variable
                 @code_diff type=t +(1, 2) +(2, 3)
@@ -462,6 +469,12 @@ end
             @test !CodeDiffs.issame(@code_diff :(1+2) :(2+2))
             a = :(1+2)
             @test !CodeDiffs.issame(@code_diff :($a) :(2+2))
+        end
+
+        @testset "Extra" begin
+            d1 = @code_diff extra_1=(; type=:native, debuginfo=:none) extra_2=(; type=:llvm, color=false) f() f()
+            d2 = @code_diff type_1=:native debuginfo_1=:none type_2=:llvm color_2=false f() f()
+            @test d1 == d2
         end
     end
 end
