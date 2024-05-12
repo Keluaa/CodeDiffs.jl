@@ -11,13 +11,13 @@ function method_instance(sig, world)
 end
 
 
-function method_instance(f::Base.Callable, types::Type{<:Tuple}, world=Base.get_world_counter())
+function method_instance(f, types::Type{<:Tuple}, world=Base.get_world_counter())
     @nospecialize(f, types)
     return method_instance(Base.signature_type(f, types), world)
 end
 
 
-function code_native(f::Base.Callable, types::Type{<:Tuple}, ::Nothing; kwargs...)
+function code_native(f, types::Type{<:Tuple}, ::Nothing; kwargs...)
     @nospecialize(f, types)
     io_buf = IOBuffer()
     io_ctx = IOContext(io_buf, :color => false)
@@ -27,7 +27,7 @@ end
 
 
 function code_native(
-    f::Base.Callable, types::Type{<:Tuple}, world::Integer;
+    f, types::Type{<:Tuple}, world::Integer;
     dump_module=true, syntax=:intel, raw=false, debuginfo=:default, binary=false
 )
     @nospecialize(f, types)
@@ -71,7 +71,7 @@ code_native(@nospecialize(f), @nospecialize(types); world=nothing, kwargs...) =
     code_native(f, types, world; kwargs...)
 
 
-function code_llvm(f::Base.Callable, types::Type{<:Tuple}, ::Nothing; kwargs...)
+function code_llvm(f, types::Type{<:Tuple}, ::Nothing; kwargs...)
     @nospecialize(f, types)
     io_buf = IOBuffer()
     io_ctx = IOContext(io_buf, :color => false)
@@ -81,7 +81,7 @@ end
 
 
 function code_llvm(
-    f::Base.Callable, types::Type{<:Tuple}, world::Integer;
+    f, types::Type{<:Tuple}, world::Integer;
     raw=false, dump_module=false, optimize=true, debuginfo=:default
 )
     @nospecialize(f, types)
@@ -135,7 +135,7 @@ The Julia-IR code (aka 'typed code') of the method of `f` called with `types`
 
 The function call should only match a single method.
 """
-function code_typed(f, types; world=nothing, kwargs...)
+function code_typed(f, types::Type{<:Tuple}; world=nothing, kwargs...)
     @nospecialize(f, types)
     if isnothing(world)
         code_info = Base.code_typed(f, types; kwargs...)
@@ -170,7 +170,7 @@ end
 
 method_to_ast(mi::Core.MethodInstance) = method_to_ast(mi.def)
 
-function method_to_ast(f::Base.Callable, types::Type{<:Tuple}; world=nothing)
+function method_to_ast(f, types::Type{<:Tuple}; world=nothing)
     @nospecialize(f, types)
     if !isnothing(world)
         error("Revise.jl does not keep track of previous definitions: \
@@ -196,7 +196,7 @@ If `prettify == true`, then [`MacroTools.prettify(code; lines, alias)`](https://
 is used to cleanup the AST. `lines == true` will keep the `LineNumberNode`s and `alias == true`
 will replace mangled names (or `gensym`s) by more readable names.
 """
-function code_ast(f::Base.Callable, types::Type{<:Tuple}; prettify=true, lines=false, alias=false, kwargs...)
+function code_ast(f, types::Type{<:Tuple}; prettify=true, lines=false, alias=false, kwargs...)
     @nospecialize(f, types)
     code = method_to_ast(f, types; kwargs...)
     return code_ast(code; prettify, lines, alias)

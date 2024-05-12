@@ -58,7 +58,7 @@ end
 
 
 """
-    code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+    code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
     code_for_diff(expr::Expr; type=:ast, color=true, kwargs...)
 
 Fetches the code of `f` with [`get_code(Val(type), f, types; kwargs...)`](@ref), cleans it
@@ -66,7 +66,7 @@ up with [`cleanup_code(Val(type), code)`](@ref) and highlights it using the appr
 [`code_highlighter(Val(type))`](@ref).
 The result is two `String`s: one without and the other with highlighting.
 """
-function code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+function code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
     @nospecialize(f, types)
     code = get_code(Val(type), f, types; kwargs...)
     return code_for_diff(code, Val(type), color)
