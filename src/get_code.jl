@@ -145,6 +145,16 @@ function code_typed(f, types; world=nothing, kwargs...)
     return only(code_info)
 end
 
+function code_typed(mi::Core.MethodInstance; world=nothing, kwargs...)
+    sig = mi.specTypes
+    if isnothing(world)
+        code_info = Base.code_typed_by_type(sig; kwargs...)
+    else
+        code_info = Base.code_typed_by_type(sig; world, kwargs...)
+    end
+    return only(code_info)
+end
+
 
 function method_to_ast(method::Method)
     ast = CodeTracking.definition(Expr, method)
@@ -216,9 +226,13 @@ The code object of `code_type` for `f`. Dispatch depends on `code_type`:
  - `:typed`: [`code_typed`](@ref)
  - `:ast`: [`code_ast`](@ref)
 """
-get_code(::Val{:native}, f, types; kwargs...) = code_native(f, types; kwargs...)
-get_code(::Val{:llvm},   f, types; kwargs...) = code_llvm(f, types; kwargs...)
-get_code(::Val{:typed},  f, types; kwargs...) = code_typed(f, types; kwargs...)
-get_code(::Val{:ast},    f, types; kwargs...) = code_ast(f, types; kwargs...)
+get_code(code_type, f, types; kwargs...) = get_code_dispatch(code_type, f, types; kwargs...)
+
+# By specializing the `code_type` only in `get_code_dispatch`, we prevent any method
+# ambiguities (e.g. with the KernelAbstractions extension)
+get_code_dispatch(::Val{:native}, f, types; kwargs...) = code_native(f, types; kwargs...)
+get_code_dispatch(::Val{:llvm},   f, types; kwargs...) = code_llvm(f, types; kwargs...)
+get_code_dispatch(::Val{:typed},  f, types; kwargs...) = code_typed(f, types; kwargs...)
+get_code_dispatch(::Val{:ast},    f, types; kwargs...) = code_ast(f, types; kwargs...)
 
 @specialize

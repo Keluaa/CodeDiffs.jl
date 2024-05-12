@@ -166,6 +166,10 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
 
     xlines = split(diff.highlighted_before, '\n')
     ylines = split(diff.highlighted_after, '\n')
+    if !(length(diff.diff.before) == length(xlines) && length(diff.diff.after) == length(ylines))
+        # Can happen in case of silent highlighting failure (e.g. pygments)
+        error("cannot display `CodeDiff` as highlighted codes do not match the unhighlighted ones")
+    end
 
     width = !isnothing(width) ? width : displaysize(io)[2]
     if line_numbers

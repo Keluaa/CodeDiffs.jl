@@ -12,11 +12,21 @@ Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 StringDistances = "88034a9c-02f8-509d-84a9-84ec65e18404"
 WidthLimitedIO = "b8c1c048-cf81-46c6-9da0-18c1d99e41f2"
 
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+
+[extensions]
+CodeDiffsCUDA = "CUDA"
+CodeDiffsKernelAbstractions = "KernelAbstractions"
+
 [compat]
 Aqua = "0.7"
+CUDA = "4, 5"
 CodeTracking = "1"
 DeepDiffs = "1"
 InteractiveUtils = "1"
+KernelAbstractions = "0.7, 0.8, 0.9"
 MacroTools = "0.5"
 Markdown = "1"
 ReferenceTests = "0.10"
