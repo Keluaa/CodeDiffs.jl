@@ -17,7 +17,7 @@ function CodeDiffs.extract_extra_options(@nospecialize(f::Kernel), kwargs)
 end
 
 
-function CodeDiffs.get_code(code_type::Val, f::Kernel, types::Type{<:Tuple};
+function CodeDiffs.get_code(code_type::Val, kernel::Kernel, types::Type{<:Tuple};
     ndrange=nothing, workgroupsize=nothing, kernel_instance=nothing, kwargs...
 )
     @nospecialize(f, types)
@@ -25,9 +25,9 @@ function CodeDiffs.get_code(code_type::Val, f::Kernel, types::Type{<:Tuple};
     # TODO: deduce the appropriate `code_type` from the KA backend? (e.g. `:typed` + `CUDABackend` = `:cuda_typed`)
 
     # Same logic as for `KernelAbstractions.ka_code_typed`
-    ndrange, workgroupsize, iterspace, dynamic = KernelAbstractions.launch_config(f, ndrange, workgroupsize)
+    ndrange, workgroupsize, iterspace, dynamic = KernelAbstractions.launch_config(kernel, ndrange, workgroupsize)
 
-    if f isa Kernel{KernelAbstractions.CPU}
+    if kernel isa Kernel{KernelAbstractions.CPU}
         block = @inbounds KernelAbstractions.blocks(iterspace)[1]
         ctx = KernelAbstractions.mkcontext(kernel, block, ndrange, iterspace, dynamic)
     else
@@ -35,7 +35,7 @@ function CodeDiffs.get_code(code_type::Val, f::Kernel, types::Type{<:Tuple};
     end
 
     kernel_args = Tuple{typeof(ctx), types.parameters...}
-    return CodeDiffs.get_code(code_type, f, kernel_args; kwargs...)
+    return CodeDiffs.get_code(code_type, kernel.f, kernel_args; kwargs...)
 end
 
 

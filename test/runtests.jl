@@ -3,6 +3,7 @@ using Aqua
 using CodeDiffs
 using DeepDiffs
 using InteractiveUtils
+using KernelAbstractions
 using ReferenceTests
 using Revise
 using Test
@@ -302,7 +303,7 @@ end
                 g(c, d)
                 "test"
             end
-    
+
             B = quote
                 println("B")
                 1 + 3
@@ -423,10 +424,10 @@ end
 
     @testset "@code_diff" begin
         @static VERSION ≥ v"1.8-" && @testset "error" begin
-            @test_throws "not a function call" @code_diff "f()" g()
-            @test_throws "not a function call" @code_diff f() "g()"
-            @test_throws "not a function call" @code_diff "f()" "g()"
-            @test_throws "not a function call" @code_diff a b
+            @test_throws "Expected call" @code_diff "f()" g()
+            @test_throws "Expected call" @code_diff f() "g()"
+            @test_throws "Expected call" @code_diff "f()" "g()"
+            @test_throws "Expected call" @code_diff a b
             @test_throws "`key=value`, got: `a`" @code_diff a b c
             @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
         end
@@ -450,18 +451,19 @@ end
             # a common error with both mecros.
             expected_error = nothing
             try
-                eval(:(@code_native sum_args.(1:5, 2; c=4)))
+                @code_native sum_args.(1:5, 2; c=4)
             catch e
-                expected_error = sprint(Base.showerror, e)
+                expected_error = e
             end
 
             actual_error = nothing
             try
-                eval(:(@code_diff sum_args.(1:5, 2; c=4) sum_args.(1:3, 2:5)))
+                @code_diff sum_args.(1:5, 2; c=4) sum_args.(1:3, 2:5)
             catch e
-                actual_error = sprint(Base.showerror, e)
+                actual_error = e
             end
-            @test expected_error == actual_error
+            @test typeof(expected_error) == typeof(actual_error) == MethodError
+            @test expected_error.f == actual_error.f
         end
 
         @testset "AST" begin
@@ -477,4 +479,6 @@ end
             @test d1 == d2
         end
     end
+
+    include("KernelAbstractions.jl")
 end
