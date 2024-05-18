@@ -345,14 +345,33 @@ end
     end
 
     @testset "LLVM module name" begin
-        @test CodeDiffs.replace_llvm_module_name("julia_f_1") == "f"
+        # julia_
+        @test CodeDiffs.replace_llvm_module_name("julia_f_123") == "f"
         if Sys.islinux()
             @eval var"@f"() = 1
             @test occursin(r"julia_f_\d+", @io2str code_native(::IO, var"@f", Tuple{}))
-            @test CodeDiffs.replace_llvm_module_name("julia_f_1", "@f") == "f"
+            @test CodeDiffs.replace_llvm_module_name("julia_f_123", "@f") == "f"
         else
-            @test CodeDiffs.replace_llvm_module_name("julia_@f_1", "@f") == "@f"
+            @test CodeDiffs.replace_llvm_module_name("julia_@f_123", "@f") == "@f"
         end
+
+        # jlcapi_
+        get_cfunc_add() = @cfunction(+, Int, (Int, Int))
+        @test occursin(r"jlcapi_\+_\d+", @io2str code_llvm(::IO, get_cfunc_add, Tuple{}))
+        @test CodeDiffs.replace_llvm_module_name("jlcapi_+_123") == "+"
+
+        # j_
+        function test_append(a, b)
+            v = Vector{typeof(b)}()
+            push!(v, a, b) # 'j__append!' call
+            return v
+        end
+        @test occursin(r"j__append!_\d+", @io2str code_llvm(::IO, test_append, Tuple{Int, Int}))
+        @test CodeDiffs.replace_llvm_module_name("j__append!_123") == "_append!"
+
+        # I did not find easy ways to create a function test in those cases:
+        @test CodeDiffs.replace_llvm_module_name("jfptr_f_123") == "f"
+        @test CodeDiffs.replace_llvm_module_name("tojlinvoke123") == "tojlinvoke"
     end
 
     @testset "World age" begin
