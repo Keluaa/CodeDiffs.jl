@@ -23,7 +23,8 @@ function gpu_compiler_job(f, types, world=nothing; kwargs...)
     if isnothing(world)
         mi = gpu_method_instance(ft, tt)
     else
-        mi = gpu_method_instance(ft, tt, world)
+        error("CUDA.jl ignores the `world` age and works only with the latest methods")
+        # mi = gpu_method_instance(ft, tt, world)
     end
     return gpu_compiler_job(mi; kwargs...)
 end
@@ -114,6 +115,29 @@ CodeDiffs.code_highlighter(::Val{:cuda_native}) = CodeDiffs.code_highlighter(Val
 
 function highlight_using_pygments(io::IO, str::AbstractString, lexer)
     CUDA.GPUCompiler.highlight(io, str, lexer)
+end
+
+
+CodeDiffs.cleanup_code(::Val{:cuda_llvm}, c) = CodeDiffs.replace_llvm_module_name(c)
+
+CodeDiffs.cleanup_code(::Val{:cuda_native}, c) = CodeDiffs.cleanup_code(Val{:ptx}(), c)
+function CodeDiffs.cleanup_code(::Val{:ptx}, c)
+    # PTX problems:
+    # Additional functions (e.g. those introduced by exceptions) have random positions in
+    # the PTX header, and have as well parameters named after the function and can inherit
+    # the `globalUniqueGeneratedNames` value.
+    c = CodeDiffs.replace_llvm_module_name(c)
+    # I don't know what `callseq` indicates in comments, but the numbers after change at every call
+    return replace(c, r" // callseq .+$"m => "")
+end
+
+function CodeDiffs.cleanup_code(::Val{:sass}, c)
+    # SASS problems:
+    # Registers seem to be assigned randomly, changing from one call to another with the
+    # same input, as well as some immediate values (maybe related to the functions order in PTX?).
+    # Some instructions (only `MOV` from what I saw) might be ordered differently, or even
+    # in different numbers (max of what I could see is 1, but still surprising).
+    return CodeDiffs.replace_llvm_module_name(c)
 end
 
 end
