@@ -217,7 +217,10 @@ macro code_diff(args...)
     options₁ = Expr[]
     options₂ = Expr[]
     for option in options
-        if !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
+        if option isa Symbol
+            # Shortcut allowing to write `opt` instead of `opt=opt`
+            option = Expr(:(=), option, option)
+        elseif !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
             opt_error = "options must be in the form `key=value`, got: `$option`"
             return :(throw(ArgumentError($opt_error)))
         end

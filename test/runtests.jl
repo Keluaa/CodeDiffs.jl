@@ -447,14 +447,18 @@ end
             @test_throws "Expected call" @code_diff f() "g()"
             @test_throws "Expected call" @code_diff "f()" "g()"
             @test_throws "Expected call" @code_diff a b
-            @test_throws "`key=value`, got: `a`" @code_diff a b c
+            @test_throws "`key=value`, got: `a + 1`" @code_diff a+1 b c
             @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
         end
 
         @testset "Kwargs" begin
             @testset "type=$t" for t in (:native, :llvm, :typed)
                 # `type` can be a variable
-                @code_diff type=t +(1, 2) +(2, 3)
+                d1 = @code_diff type=t +(1, 2) +(2, 3)
+                # if the variable has the same name as the option, no need to repeat it
+                type = t
+                d2 = @code_diff type +(1, 2) +(2, 3)
+                @test d1 == d2
             end
         end
 
