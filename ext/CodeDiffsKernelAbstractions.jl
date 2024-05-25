@@ -5,9 +5,6 @@ using KernelAbstractions
 import KernelAbstractions: Kernel
 
 
-CodeDiffs.argconvert(@nospecialize(f::Kernel), arg) = KernelAbstractions.argconvert(f, arg)
-
-
 function CodeDiffs.extract_extra_options(@nospecialize(f::Kernel), kwargs)
     return (; 
         ndrange = get(kwargs, :ndrange, nothing),

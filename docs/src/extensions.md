@@ -27,7 +27,7 @@ Each compilation step has its own code type:
 
 # Defining a new extension
 
-Defining a new `code_type` involves three functions:
+Defining a new `code_type` involves four functions:
 - `CodeDiffs.get_code_dispatch(::Val{code_type}, f, types; kwargs...)` (**not** `get_code`!)
   should return a printable object (usually a `String`) representing the code for `f(types)`.
   `kwargs` are the options passed to `@code_diff`.
@@ -36,10 +36,10 @@ Defining a new `code_type` involves three functions:
 - `CodeDiffs.code_highlighter(::Val{code_type})` returns a `f(io, obj)` to print the `obj`
   to as text in `io`. This is done twice: once without highlighting (`get(io, :color, false) == false`),
   and another with highlighting.
+- `CodeDiffs.argconvert(::Val{code_type}, arg)` converts `arg` as needed (by default `arg` is unchanged)
 
 Defining a new pre-processing step for functions and its arguments (like for KA.jl kernels)
-involves three functions:
-- `CodeDiffs.argconvert(f, arg)` transforms `arg` depending on `f` (by default `arg` is unchanged)
+involves two functions:
 - `CodeDiffs.extract_extra_options(f, kwargs)` returns some additional `kwargs` which are passed to `get_code`
 - `CodeDiffs.get_code(code_type, f, types; kwargs...)` allows to change `f` depending on its type.
   To avoid method ambiguities, do not put type constraints on `code_type`.

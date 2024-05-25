@@ -90,6 +90,12 @@ for func in (:code_cuda_typed, :code_cuda_llvm, :code_ptx, :code_sass)
 end
 
 
+CodeDiffs.argconvert(::Val{:cuda_typed},  arg) = CUDA.cudaconvert(arg)
+CodeDiffs.argconvert(::Val{:cuda_llvm},   arg) = CUDA.cudaconvert(arg)
+CodeDiffs.argconvert(::Val{:ptx},         arg) = CUDA.cudaconvert(arg)
+CodeDiffs.argconvert(::Val{:cuda_native}, arg) = CUDA.cudaconvert(arg)
+CodeDiffs.argconvert(::Val{:sass},        arg) = CUDA.cudaconvert(arg)
+
 @nospecialize
 
 CodeDiffs.get_code_dispatch(::Val{:cuda_typed},  f, types; kwargs...) = code_cuda_typed(f, types; kwargs...)

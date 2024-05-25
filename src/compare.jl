@@ -96,13 +96,15 @@ function code_for_diff(code, type::Val, color)
 end
 
 
-argconvert(@nospecialize(f), arg) = arg  # Overloaded by the KernelAbstractions.jl extension
+argconvert(@nospecialize(code_type), arg) = arg
 extract_extra_options(@nospecialize(f), _) = (;)
-separate_kwargs(@nospecialize(f), args...; kwargs...) = (argconvert.(Ref(f), args), values(kwargs))
+separate_kwargs(code_type::Val, args...; kwargs...) = (argconvert.(Ref(code_type), args), values(kwargs))
 is_error_expr(expr) = Base.isexpr(expr, :call) && expr.args[1] in (:error, :throw)
 
 
 function gen_code_for_diff_call(mod, expr, diff_options)
+    # `diff_options` must be already `esc`aped, but not `expr`
+
     if !Base.isexpr(expr, [:call, :(.)])
         error_str = "Expected call (or dot call) to function, got: $expr"
         return :(throw(ArgumentError($error_str)))
@@ -110,8 +112,9 @@ function gen_code_for_diff_call(mod, expr, diff_options)
 
     is_dot_call = Base.isexpr(expr, :(.))
 
-    f_sym, args_sym, kwargs_sym, diff_opts_sym = gensym(:f), gensym(:args), gensym(:kwargs), gensym(:extra_opts)
-    f_esc, args_esc, kwargs_esc, diff_opts_esc = esc(f_sym), esc(args_sym), esc(kwargs_sym), esc(diff_opts_sym)
+    f_sym, args_sym, kwargs_sym, code_type_sym = gensym(:f), gensym(:args), gensym(:kwargs), gensym(:code_type)
+    f_esc, args_esc, kwargs_esc, code_type_esc = esc(f_sym), esc(args_sym), esc(kwargs_sym), esc(code_type_sym)
+    diff_opts_esc, extra_diff_opts_esc = esc(gensym(:diff_opts)), esc(gensym(:extra_opts))
 
     # `f`'s arguments will be replaced by splats from `separate_kwargs` which would have
     # properly `argconvert` all arguments.
@@ -131,6 +134,10 @@ function gen_code_for_diff_call(mod, expr, diff_options)
     push!(parent(call_args_no_kw), :($args_sym...))
     push!(parent(call_args_wh_kw), Expr(:parameters, :($kwargs_sym...)), :($args_sym...))
 
+    # Add the `code_type` argument for `separate_kwargs`
+    first_arg_pos = !isempty(call_args) && Base.isexpr(call_args[1], :parameters) ? 2 : 1
+    insert!(call_args, first_arg_pos, :(Val($code_type_sym)))
+
     # `code_for_diff`'s name must start with `code` in order to replicate the behavior of
     # the other `@code_*` macros.
     code_for_diff_no_kw = InteractiveUtils.gen_call_with_extracted_types(mod, :code_for_diff, expr_no_kw)
@@ -144,18 +151,18 @@ function gen_code_for_diff_call(mod, expr, diff_options)
     diff_args_wh_kw = Base.isexpr(code_for_diff_wh_kw, :call) ? code_for_diff_wh_kw.args : code_for_diff_wh_kw.args[end].args
     !Base.isexpr(diff_args_no_kw[2], :parameters) && insert!(diff_args_no_kw, 2, Expr(:parameters))
     !Base.isexpr(diff_args_wh_kw[2], :parameters) && insert!(diff_args_wh_kw, 2, Expr(:parameters))
-    append!(diff_args_no_kw[2].args, diff_options, (Expr(:..., diff_opts_esc),))
-    append!(diff_args_wh_kw[2].args, diff_options, (Expr(:..., diff_opts_esc),))
+    push!(diff_args_no_kw[2].args, Expr(:..., diff_opts_esc), Expr(:..., extra_diff_opts_esc))
+    push!(diff_args_wh_kw[2].args, Expr(:..., diff_opts_esc), Expr(:..., extra_diff_opts_esc))
 
-    # Build arguments as such: `separate_kwargs(f, arg1, arg2; kw1=v1, kw2=v2)`
-    func_pos = !isempty(call_args) && Base.isexpr(call_args[1], :parameters) ? 2 : 1
+    diff_kwargs = Expr(:tuple, Expr(:parameters, diff_options...))  # `(; diff_options...)`
     call_args .= esc.(call_args)
-    insert!(call_args, func_pos, f_esc)
 
     return MacroTools.flatten(quote
+        local $diff_opts_esc = $diff_kwargs
         local $f_esc = $(esc(f_expr))
+        local $code_type_esc = get($diff_opts_esc, :type, :native)
         local $args_esc, $kwargs_esc = $separate_kwargs($(call_args...))
-        local $diff_opts_esc = $extract_extra_options($f_esc, $kwargs_esc)
+        local $extra_diff_opts_esc = $extract_extra_options($f_esc, $kwargs_esc)
 
         if isempty($kwargs_esc)
             $code_for_diff_no_kw
