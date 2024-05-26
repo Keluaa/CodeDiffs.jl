@@ -367,8 +367,25 @@ end
             push!(v, a, b) # 'j__append!' call
             return v
         end
-        @test occursin(r"j__append!_\d+", @io2str code_llvm(::IO, test_append, Tuple{Int, Int}))
-        @test CodeDiffs.replace_llvm_module_name("j__append!_123") == "_append!"
+        test_append_llvm_ir = @io2str code_llvm(::IO, test_append, Tuple{Int, Int})
+
+        @static if VERSION ≥ v"1.11-"
+            @test occursin(CodeDiffs.function_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.function_unique_gen_name_regex("copyto!"), test_append_llvm_ir)
+            @test occursin(r"j_copyto!_\d+", test_append_llvm_ir)
+            @test CodeDiffs.replace_llvm_module_name("j_copyto!_123") == "copyto!"
+
+            @test occursin(CodeDiffs.global_var_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.global_var_unique_gen_name_regex("Core.GenericMemory"), test_append_llvm_ir)
+
+            @test CodeDiffs.replace_llvm_module_name("@+Core.GenericMemory#123.jit") == "@+Core.GenericMemory.jit"
+            @test CodeDiffs.replace_llvm_module_name(".L+Core.GenericMemory#123.jit") == ".L+Core.GenericMemory.jit"
+        else
+            @test occursin(CodeDiffs.function_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.function_unique_gen_name_regex("_append!"), test_append_llvm_ir)
+            @test occursin(r"j__append!_\d+", test_append_llvm_ir)
+            @test CodeDiffs.replace_llvm_module_name("j__append!_123") == "_append!"
+        end
 
         # I did not find easy ways to create a function test in those cases:
         @test CodeDiffs.replace_llvm_module_name("jfptr_f_123") == "f"

@@ -85,6 +85,7 @@ code_highlighter
 cleanup_code
 replace_llvm_module_name
 function_unique_gen_name_regex
+global_var_unique_gen_name_regex
 ```
 
 # Diff display
