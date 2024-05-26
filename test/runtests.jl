@@ -460,7 +460,7 @@ end
     end
 
     @testset "@code_diff" begin
-        @static VERSION ≥ v"1.8-" && @testset "error" begin
+        @testset "error" begin
             @test_throws "Expected call" @code_diff "f()" g()
             @test_throws "Expected call" @code_diff f() "g()"
             @test_throws "Expected call" @code_diff "f()" "g()"
@@ -480,7 +480,7 @@ end
             end
         end
 
-        @static VERSION ≥ v"1.9-" && @testset "Special calls" begin
+        @testset "Special calls" begin
             # From 1.9 `@code_native` (& others) support dot calls
             @test !CodeDiffs.issame(@code_diff identity.(1:3) identity(1:3))
             @test !CodeDiffs.issame(@code_diff (x -> x + 1).(1:3) identity(1:3))

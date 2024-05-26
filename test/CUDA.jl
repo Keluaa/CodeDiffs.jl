@@ -63,7 +63,7 @@ end
 
     test_cuda_diff(gpu_add!, (y_d, x_d), gpu_sub!, (y_d, x_d))
 
-    @static VERSION ≥ v"1.8-" && @testset "error" begin
+    @testset "error" begin
         @test_throws "ignores the `world` age" @code_diff type=:cuda_typed world_1=1 gpu_add!(y_d, x_d) gpu_add!(y_d, x_d)
     end
 end

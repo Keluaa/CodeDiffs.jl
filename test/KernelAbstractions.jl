@@ -69,7 +69,7 @@ end
         daxpy_k(r, a, x, y; ndrange=length(r))
     ))
 
-    @static VERSION ≥ v"1.8" && @test_throws("Can not partition kernel!",
+    @test_throws("Can not partition kernel!",
         @code_diff type=:typed daxpy_k(r, a, x, y) daxmy_k(r, a, x, y)
     )
 end
@@ -119,7 +119,7 @@ end
 end
 
 
-@static VERSION ≥ v"1.8" && @testset "Errors" begin
+@testset "Errors" begin
     # no ast from KA kernels: Revise cannot track it properly as they are generated from macros
     @test_logs (:warn, r"was not found") @test_throws("could not retrieve the AST",
         @code_diff type=:ast daxpy_k(r, a, x, y; ndrange=length(r)) daxmy_k(r, a, x, y; ndrange=length(r))
