@@ -21,7 +21,17 @@ Syntax highlighting for Julia AST is also supported:
 
 ## Supported languages
 
-- native CPU assembly (output of `@code_native`)
-- LLVM IR (output of `@code_llvm`)
-- Typed Julia IR (output of `@code_typed`)
-- Julia AST (any `Expr`)
+- `:native` native CPU assembly (output of `@code_native`)
+- `:llvm` native LLVM IR (output of `@code_llvm`)
+- `:typed` Typed Julia IR (output of `@code_typed`)
+- `:ast` Julia AST (any `Expr`, relies on [`Revise.jl`](https://github.com/timholy/Revise.jl))
+
+From [`CUDA.jl`](https://github.com/JuliaGPU/CUDA.jl):
+
+- `:sass` SASS assembly (output of `CUDA.@device_code_sass`)
+- `:cuda_native`/`:ptx` PTX assembly (output of `CUDA.@device_code_ptx`)
+- `:cuda_llvm` GPU LLVM IR (output of `CUDA.@device_code_llvm`)
+- `:cuda_typed` typed Julia IR for the GPU (output of `CUDA.@device_code_typed`)
+
+Calls to kernels from [`KernelAbstractions.jl`](https://github.com/JuliaGPU/KernelAbstractions.jl)
+will give the code of the actual underlying kernel seamlessly.

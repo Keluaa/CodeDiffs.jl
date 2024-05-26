@@ -164,8 +164,18 @@ environment variable `"CODE_DIFFS_LINE_NUMBERS"`, which itself defaults to `fals
 function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, line_numbers=nothing)
     line_numbers = !isnothing(line_numbers) ? line_numbers : parse(Bool, get(ENV, "CODE_DIFFS_LINE_NUMBERS", "false"))
 
-    xlines = split(diff.highlighted_before, '\n')
-    ylines = split(diff.highlighted_after, '\n')
+    if get(io, :color, false)
+        xlines = split(diff.highlighted_before, '\n')
+        ylines = split(diff.highlighted_after, '\n')
+    else
+        xlines = split(diff.before, '\n')
+        ylines = split(diff.after, '\n')
+    end
+
+    if !(length(diff.diff.before) == length(xlines) && length(diff.diff.after) == length(ylines))
+        # Can happen in case of silent highlighting failure (e.g. pygments)
+        error("cannot display `CodeDiff` as highlighted code do not match the unhighlighted one")
+    end
 
     width = !isnothing(width) ? width : displaysize(io)[2]
     if line_numbers

@@ -1,8 +1,10 @@
 
 using Aqua
 using CodeDiffs
+using CUDA
 using DeepDiffs
 using InteractiveUtils
+using KernelAbstractions
 using ReferenceTests
 using Revise
 using Test
@@ -302,7 +304,7 @@ end
                 g(c, d)
                 "test"
             end
-    
+
             B = quote
                 println("B")
                 1 + 3
@@ -344,14 +346,50 @@ end
     end
 
     @testset "LLVM module name" begin
-        @test CodeDiffs.replace_llvm_module_name("julia_f_1") == "f"
+        # julia_
+        @test CodeDiffs.replace_llvm_module_name("julia_f_123") == "f"
         if Sys.islinux()
             @eval var"@f"() = 1
             @test occursin(r"julia_f_\d+", @io2str code_native(::IO, var"@f", Tuple{}))
-            @test CodeDiffs.replace_llvm_module_name("julia_f_1", "@f") == "f"
+            @test CodeDiffs.replace_llvm_module_name("julia_f_123", "@f") == "f"
         else
-            @test CodeDiffs.replace_llvm_module_name("julia_@f_1", "@f") == "@f"
+            @test CodeDiffs.replace_llvm_module_name("julia_@f_123", "@f") == "@f"
         end
+
+        # jlcapi_
+        get_cfunc_add() = @cfunction(+, Int, (Int, Int))
+        @test occursin(r"jlcapi_\+_\d+", @io2str code_llvm(::IO, get_cfunc_add, Tuple{}))
+        @test CodeDiffs.replace_llvm_module_name("jlcapi_+_123") == "+"
+
+        # j_
+        function test_append(a, b)
+            v = Vector{typeof(b)}()
+            push!(v, a, b) # 'j__append!' call
+            return v
+        end
+        test_append_llvm_ir = @io2str code_llvm(::IO, test_append, Tuple{Int, Int})
+
+        @static if VERSION ≥ v"1.11-"
+            @test occursin(CodeDiffs.function_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.function_unique_gen_name_regex("copyto!"), test_append_llvm_ir)
+            @test occursin(r"j_copyto!_\d+", test_append_llvm_ir)
+            @test CodeDiffs.replace_llvm_module_name("j_copyto!_123") == "copyto!"
+
+            @test occursin(CodeDiffs.global_var_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.global_var_unique_gen_name_regex("Core.GenericMemory"), test_append_llvm_ir)
+
+            @test CodeDiffs.replace_llvm_module_name("@+Core.GenericMemory#123.jit") == "@+Core.GenericMemory.jit"
+            @test CodeDiffs.replace_llvm_module_name(".L+Core.GenericMemory#123.jit") == ".L+Core.GenericMemory.jit"
+        else
+            @test occursin(CodeDiffs.function_unique_gen_name_regex(), test_append_llvm_ir)
+            @test occursin(CodeDiffs.function_unique_gen_name_regex("_append!"), test_append_llvm_ir)
+            @test occursin(r"j__append!_\d+", test_append_llvm_ir)
+            @test CodeDiffs.replace_llvm_module_name("j__append!_123") == "_append!"
+        end
+
+        # I did not find easy ways to create a function test in those cases:
+        @test CodeDiffs.replace_llvm_module_name("jfptr_f_123") == "f"
+        @test CodeDiffs.replace_llvm_module_name("tojlinvoke123") == "tojlinvoke"
     end
 
     @testset "World age" begin
@@ -422,23 +460,27 @@ end
     end
 
     @testset "@code_diff" begin
-        @static VERSION ≥ v"1.8-" && @testset "error" begin
-            @test_throws "not a function call" @code_diff "f()" g()
-            @test_throws "not a function call" @code_diff f() "g()"
-            @test_throws "not a function call" @code_diff "f()" "g()"
-            @test_throws "not a function call" @code_diff a b
-            @test_throws "`key=value`, got: `a`" @code_diff a b c
+        @testset "error" begin
+            @test_throws "Expected call" @code_diff "f()" g()
+            @test_throws "Expected call" @code_diff f() "g()"
+            @test_throws "Expected call" @code_diff "f()" "g()"
+            @test_throws "Expected call" @code_diff a b
+            @test_throws "`key=value`, got: `a + 1`" @code_diff a+1 b c
             @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
         end
 
         @testset "Kwargs" begin
             @testset "type=$t" for t in (:native, :llvm, :typed)
                 # `type` can be a variable
-                @code_diff type=t +(1, 2) +(2, 3)
+                d1 = @code_diff type=t +(1, 2) +(2, 3)
+                # if the variable has the same name as the option, no need to repeat it
+                type = t
+                d2 = @code_diff type +(1, 2) +(2, 3)
+                @test d1 == d2
             end
         end
 
-        @static VERSION ≥ v"1.9-" && @testset "Special calls" begin
+        @testset "Special calls" begin
             # From 1.9 `@code_native` (& others) support dot calls
             @test !CodeDiffs.issame(@code_diff identity.(1:3) identity(1:3))
             @test !CodeDiffs.issame(@code_diff (x -> x + 1).(1:3) identity(1:3))
@@ -450,18 +492,19 @@ end
             # a common error with both mecros.
             expected_error = nothing
             try
-                eval(:(@code_native sum_args.(1:5, 2; c=4)))
+                @code_native sum_args.(1:5, 2; c=4)
             catch e
-                expected_error = sprint(Base.showerror, e)
+                expected_error = e
             end
 
             actual_error = nothing
             try
-                eval(:(@code_diff sum_args.(1:5, 2; c=4) sum_args.(1:3, 2:5)))
+                @code_diff sum_args.(1:5, 2; c=4) sum_args.(1:3, 2:5)
             catch e
-                actual_error = sprint(Base.showerror, e)
+                actual_error = e
             end
-            @test expected_error == actual_error
+            @test typeof(expected_error) == typeof(actual_error) == MethodError
+            @test expected_error.f == actual_error.f
         end
 
         @testset "AST" begin
@@ -477,4 +520,8 @@ end
             @test d1 == d2
         end
     end
+
+    include("KernelAbstractions.jl")
+
+    CUDA.functional() && include("CUDA.jl")
 end

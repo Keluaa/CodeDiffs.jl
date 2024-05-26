@@ -84,7 +84,8 @@ code_highlighter
 ```@docs
 cleanup_code
 replace_llvm_module_name
-LLVM_MODULE_NAME_REGEX
+function_unique_gen_name_regex
+global_var_unique_gen_name_regex
 ```
 
 # Diff display

@@ -58,7 +58,7 @@ end
 
 
 """
-    code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+    code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
     code_for_diff(expr::Expr; type=:ast, color=true, kwargs...)
 
 Fetches the code of `f` with [`get_code(Val(type), f, types; kwargs...)`](@ref), cleans it
@@ -66,7 +66,7 @@ up with [`cleanup_code(Val(type), code)`](@ref) and highlights it using the appr
 [`code_highlighter(Val(type))`](@ref).
 The result is two `String`s: one without and the other with highlighting.
 """
-function code_for_diff(f::Base.Callable, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+function code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
     @nospecialize(f, types)
     code = get_code(Val(type), f, types; kwargs...)
     return code_for_diff(code, Val(type), color)
@@ -93,6 +93,83 @@ function code_for_diff(code, type::Val, color)
     end
 
     return code_str, code_highlighted
+end
+
+
+argconvert(@nospecialize(code_type), arg) = arg
+extract_extra_options(@nospecialize(f), _) = (;)
+separate_kwargs(code_type::Val, args...; kwargs...) = (argconvert.(Ref(code_type), args), values(kwargs))
+is_error_expr(expr) = Base.isexpr(expr, :call) && expr.args[1] in (:error, :throw)
+
+
+function gen_code_for_diff_call(mod, expr, diff_options)
+    # `diff_options` must be already `esc`aped, but not `expr`
+
+    if !Base.isexpr(expr, [:call, :(.)])
+        error_str = "Expected call (or dot call) to function, got: $expr"
+        return :(throw(ArgumentError($error_str)))
+    end
+
+    is_dot_call = Base.isexpr(expr, :(.))
+
+    f_sym, args_sym, kwargs_sym, code_type_sym = gensym(:f), gensym(:args), gensym(:kwargs), gensym(:code_type)
+    f_esc, args_esc, kwargs_esc, code_type_esc = esc(f_sym), esc(args_sym), esc(kwargs_sym), esc(code_type_sym)
+    diff_opts_esc, extra_diff_opts_esc = esc(gensym(:diff_opts)), esc(gensym(:extra_opts))
+
+    # `f`'s arguments will be replaced by splats from `separate_kwargs` which would have
+    # properly `argconvert` all arguments.
+    f_expr = expr.args[1]
+    expr.args[1] = f_sym
+
+    # We can't `Core.kwcall` a function no defined with a kwargs, therefore for simplicity
+    # we duplicate everything to handle the cases with and without kwargs at runtime.
+    expr_no_kw = copy(expr)
+    expr_wh_kw = copy(expr)
+
+    call_args       = is_dot_call ?       expr.args[2].args : expr.args[2:end]
+    call_args_no_kw = is_dot_call ? expr_no_kw.args[2].args : @view(expr_no_kw.args[2:end])
+    call_args_wh_kw = is_dot_call ? expr_wh_kw.args[2].args : @view(expr_wh_kw.args[2:end])
+    keepat!(parent(call_args_no_kw), is_dot_call ? () : (1,))  # remove all arguments of the call expression
+    keepat!(parent(call_args_wh_kw), is_dot_call ? () : (1,))
+    push!(parent(call_args_no_kw), :($args_sym...))
+    push!(parent(call_args_wh_kw), Expr(:parameters, :($kwargs_sym...)), :($args_sym...))
+
+    # Add the `code_type` argument for `separate_kwargs`
+    first_arg_pos = !isempty(call_args) && Base.isexpr(call_args[1], :parameters) ? 2 : 1
+    insert!(call_args, first_arg_pos, :(Val($code_type_sym)))
+
+    # `code_for_diff`'s name must start with `code` in order to replicate the behavior of
+    # the other `@code_*` macros.
+    code_for_diff_no_kw = InteractiveUtils.gen_call_with_extracted_types(mod, :code_for_diff, expr_no_kw)
+    code_for_diff_wh_kw = InteractiveUtils.gen_call_with_extracted_types(mod, :code_for_diff, expr_wh_kw)
+    is_error_expr(code_for_diff_no_kw) && return code_for_diff_no_kw
+    is_error_expr(code_for_diff_wh_kw) && return code_for_diff_wh_kw
+
+    # Get the call to `code_for_diff` and add our kwargs to it.
+    # `gen_call_with_extracted_types` adds kwargs inconsistently so we do it ourselves.
+    diff_args_no_kw = Base.isexpr(code_for_diff_no_kw, :call) ? code_for_diff_no_kw.args : code_for_diff_no_kw.args[end].args
+    diff_args_wh_kw = Base.isexpr(code_for_diff_wh_kw, :call) ? code_for_diff_wh_kw.args : code_for_diff_wh_kw.args[end].args
+    !Base.isexpr(diff_args_no_kw[2], :parameters) && insert!(diff_args_no_kw, 2, Expr(:parameters))
+    !Base.isexpr(diff_args_wh_kw[2], :parameters) && insert!(diff_args_wh_kw, 2, Expr(:parameters))
+    push!(diff_args_no_kw[2].args, Expr(:..., diff_opts_esc), Expr(:..., extra_diff_opts_esc))
+    push!(diff_args_wh_kw[2].args, Expr(:..., diff_opts_esc), Expr(:..., extra_diff_opts_esc))
+
+    diff_kwargs = Expr(:tuple, Expr(:parameters, diff_options...))  # `(; diff_options...)`
+    call_args .= esc.(call_args)
+
+    return MacroTools.flatten(quote
+        local $diff_opts_esc = $diff_kwargs
+        local $f_esc = $(esc(f_expr))
+        local $code_type_esc = get($diff_opts_esc, :type, :native)
+        local $args_esc, $kwargs_esc = $separate_kwargs($(call_args...))
+        local $extra_diff_opts_esc = $extract_extra_options($f_esc, $kwargs_esc)
+
+        if isempty($kwargs_esc)
+            $code_for_diff_no_kw
+        else
+            $code_for_diff_wh_kw
+        end
+    end)
 end
 
 
@@ -132,7 +209,7 @@ opts = (; debuginfo=:none, world=Base.get_world_counter())
 """
 macro code_diff(args...)
     length(args) < 2 && return :(throw(ArgumentError("@code_diff takes at least 2 arguments")))
-    options = args[1:end-2]
+    options = collect(args[1:end-2])
     code₁, code₂ = args[end-1:end]
 
     # 2 ways to pass kwargs to a specific side: `extra_1=(; kwargs...)` or `<opt>_1=val`/`<opt>_2=val`
@@ -140,7 +217,10 @@ macro code_diff(args...)
     options₁ = Expr[]
     options₂ = Expr[]
     for option in options
-        if !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
+        if option isa Symbol
+            # Shortcut allowing to write `opt` instead of `opt=opt`
+            option = Expr(:(=), option, option)
+        elseif !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
             opt_error = "options must be in the form `key=value`, got: `$option`"
             return :(throw(ArgumentError($opt_error)))
         end
@@ -179,24 +259,10 @@ macro code_diff(args...)
         code_for_diff₁ = :($code_for_diff($code₁; type=:ast, $(options₁...)))
         code_for_diff₂ = :($code_for_diff($code₂; type=:ast, $(options₂...)))
     else
-        # `code_for_diff`'s name must start with `code` in order to replicate the behavior
-        # of the other `@code_*` macros.
-        code_for_diff₁ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_for_diff, code₁)
-        code_for_diff₂ = InteractiveUtils.gen_call_with_extracted_types(__module__, :code_for_diff, code₂)
-
-        if Base.isexpr(code_for_diff₁, :call) && code_for_diff₁.args[1] === :error
-            return code_for_diff₁
-        elseif Base.isexpr(code_for_diff₂, :call) && code_for_diff₂.args[1] === :error
-            return code_for_diff₂
-        end
-
-        # `gen_call_with_extracted_types` adds kwargs inconsistently so we do it ourselves
-        args₁ = Base.isexpr(code_for_diff₁, :call) ? code_for_diff₁.args : code_for_diff₁.args[end].args
-        args₂ = Base.isexpr(code_for_diff₂, :call) ? code_for_diff₂.args : code_for_diff₂.args[end].args
-        !Base.isexpr(args₁[2], :parameters) && insert!(args₁, 2, Expr(:parameters))
-        !Base.isexpr(args₂[2], :parameters) && insert!(args₂, 2, Expr(:parameters))
-        append!(args₁[2].args, options₁)
-        append!(args₂[2].args, options₂)
+        code_for_diff₁ = gen_code_for_diff_call(__module__, code₁, options₁)
+        code_for_diff₂ = gen_code_for_diff_call(__module__, code₂, options₂)
+        is_error_expr(code_for_diff₁) && return code_for_diff₁
+        is_error_expr(code_for_diff₂) && return code_for_diff₂
     end
 
     return quote
