@@ -13,14 +13,21 @@ StringDistances = "88034a9c-02f8-509d-84a9-84ec65e18404"
 WidthLimitedIO = "b8c1c048-cf81-46c6-9da0-18c1d99e41f2"
 
 [weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
 
 [extensions]
+CodeDiffsAMDGPU = "AMDGPU"
 CodeDiffsCUDA = "CUDA"
 CodeDiffsKernelAbstractions = "KernelAbstractions"
+CodeDiffsMetal = "Metal"
+CodeDiffsoneAPI = "oneAPI"
 
 [compat]
+AMDGPU = "0.9"
 Aqua = "0.7"
 CUDA = "4, 5"
 CodeTracking = "1"
@@ -29,11 +36,13 @@ InteractiveUtils = "1"
 KernelAbstractions = "0.9"
 MacroTools = "0.5"
 Markdown = "1"
+Metal = "1"
 ReferenceTests = "0.10"
 StringDistances = "0.11"
 Test = "1"
 WidthLimitedIO = "1"
 julia = "1.9"
+oneAPI = "1"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

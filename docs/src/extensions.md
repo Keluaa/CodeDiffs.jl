@@ -12,18 +12,32 @@ or when calling the kernel (`gpu_kernel(a, b, c; ndrange=1000)`).
 
 There is no support for AST comparison with KA.jl kernels.
 
-# CUDA.jl
+# GPU kernels
 
-Functions compiled in a GPU context with [`CUDA.jl`](https://github.com/JuliaGPU/CUDA.jl)
-are supported.
+[`@code_diff`](@ref) supports functions compiled in a GPU context with any of the GPU packages:
+
+- [`CUDA.jl`](https://github.com/JuliaGPU/CUDA.jl)
+- [`AMDGPU.jl`](https://github.com/JuliaGPU/AMDGPU.jl) 
+- [`oneAPI.jl`](https://github.com/JuliaGPU/oneAPI.jl)
+- [`Metal.jl`](https://github.com/JuliaGPU/Metal.jl)
+
 Each compilation step has its own code type:
-- `:cuda_typed` typed Julia IR for the GPU (output of `CUDA.@device_code_typed`)
-- `:cuda_llvm` GPU LLVM IR (output of `CUDA.@device_code_llvm`)
-- `:cuda_native`/`:ptx` PTX assembly (output of `CUDA.@device_code_ptx`)
-- `:sass` SASS assembly (output of `CUDA.@device_code_sass`)
+- `:cuda_typed`/`:rocm_typed`/`:one_typed`/`:mtl_typed` typed Julia IR for the GPU (output of `@device_code_typed`)
+- `:cuda_llvm`/`:rocm_llvm`/`:one_llvm`/`:mtl_llvm` GPU LLVM IR (output of `@device_code_llvm`)
+- `:cuda_native`/`:rocm_native`/`:one_native`/`:mtl_native` native GPU assembly (output of `@device_code_native`).
+  Each have an alias using the assembly name: `:ptx`/`:gcn`/`:spirv`/`:agx`.
 
-**Important**: unlike with `CUDA.@device_code_**` macros, no kernel code is executed by
-[`@code_diff`](@ref). This also means that kernels launched indirectly
+CUDA has one additional layer of assembly code, SASS, available with `:sass`.
+
+!!! info
+
+    Unlike with the `@device_code_*` macros, no kernel code is executed by [`@code_diff`](@ref).
+    This also means that kernels launched indirectly by the function will be ignored.
+
+!!! info
+
+    Note that behind the scenes, `GPUCompiler.jl` only cares about the most recent methods.
+    Hence the `world` keyword is unsupported for all GPU backends, as we cannot compile back in time.
 
 # Defining a new extension
 
@@ -38,7 +52,7 @@ Defining a new `code_type` involves four functions:
   and another with highlighting.
 - `CodeDiffs.argconvert(::Val{code_type}, arg)` converts `arg` as needed (by default `arg` is unchanged)
 
-Defining a new pre-processing step for functions and its arguments (like for KA.jl kernels)
+Defining a new pre-processing step for functions and its arguments (like for KernelAbstractions.jl kernels)
 involves two functions:
 - `CodeDiffs.extract_extra_options(f, kwargs)` returns some additional `kwargs` which are passed to `get_code`
 - `CodeDiffs.get_code(code_type, f, types; kwargs...)` allows to change `f` depending on its type.
