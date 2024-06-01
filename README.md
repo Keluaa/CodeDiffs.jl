@@ -30,12 +30,18 @@ support for GPU and additional cleanup functionalities.
 - `:typed` Typed Julia IR (output of `@code_typed`)
 - `:ast` Julia AST (any `Expr`, relies on [`Revise.jl`](https://github.com/timholy/Revise.jl))
 
-From [`CUDA.jl`](https://github.com/JuliaGPU/CUDA.jl):
+Their equivalents for each GPU package is also supported:
 
-- `:sass` SASS assembly (output of `CUDA.@device_code_sass`)
-- `:cuda_native`/`:ptx` PTX assembly (output of `CUDA.@device_code_ptx`)
-- `:cuda_llvm` GPU LLVM IR (output of `CUDA.@device_code_llvm`)
-- `:cuda_typed` typed Julia IR for the GPU (output of `CUDA.@device_code_typed`)
+| Code type   | [`CUDA.jl`](https://github.com/JuliaGPU/CUDA.jl) | [`AMDGPU.jl`](https://github.com/JuliaGPU/AMDGPU.jl) | [`oneAPI.jl`](https://github.com/JuliaGPU/oneAPI.jl) | [`Metal.jl`](https://github.com/JuliaGPU/Metal.jl) |
+|-------------|-----------------------|-----------------------|------------------------|----------------------|
+| Julia Typed | `:cuda_typed`         | `:rocm_typed`         | `:one_typed`           | `:mtl_typed`         |
+| LLVM IR     | `:cuda_llvm`          | `:rocm_llvm`          | `:one_llvm`            | `:mtl_llvm`          |
+| Native	  | `:cuda_native`/`:ptx` | `:rocm_native`/`:gcn` | `:one_native`/`:spirv` | `:mtl_native`/`:agx` |
+
+Additionally, SASS assembly from `CUDA` is also supported with `:sass`.
+
+Each output should match the output `@device_code_typed`, `@device_code_llvm` and `@device_code_native`
+defined by their respective GPU package, as well as accepting the same options.
 
 Calls to kernels from [`KernelAbstractions.jl`](https://github.com/JuliaGPU/KernelAbstractions.jl)
 will give the code of the actual underlying kernel seamlessly.
