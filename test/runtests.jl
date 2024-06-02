@@ -459,7 +459,7 @@ end
         @test startswith(diff_str[2], "    abc 4")
     end
 
-    @testset "@code_diff" begin
+    @testset "Macros" begin
         @testset "error" begin
             @test_throws "Expected call" @code_diff "f()" g()
             @test_throws "Expected call" @code_diff f() "g()"
@@ -467,16 +467,34 @@ end
             @test_throws "Expected call" @code_diff a b
             @test_throws "`key=value`, got: `a + 1`" @code_diff a+1 b c
             @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
+
+            @test_throws "Expected call" @code_for "f()"
+            @test_throws "Expected call" @code_for a
+            @test_throws "`key=value`, got: `a + 1`" @code_for a+1 b c
+            @test_throws "world age" @code_for type=:ast world=1 f()
+        end
+
+        @testset "@code_for" begin
+            io = IOBuffer()
+            @test (@code_for io +(1, 2)) === nothing
+            c1 = String(take!(io))
+            @test !isempty(c1)
+            c2 = @code_for io=String +(1, 2)
+            @test endswith(c1, '\n')
+            @test chomp(c1) == c2
         end
 
         @testset "Kwargs" begin
             @testset "type=$t" for t in (:native, :llvm, :typed)
                 # `type` can be a variable
                 d1 = @code_diff type=t +(1, 2) +(2, 3)
+                c1 = @code_for io=String type=t +(1, 2)
                 # if the variable has the same name as the option, no need to repeat it
                 type = t
                 d2 = @code_diff type +(1, 2) +(2, 3)
+                c2 = @code_for io=String type +(1, 2)
                 @test d1 == d2
+                @test c1 == d1.highlighted_before == c2
             end
         end
 
@@ -512,12 +530,18 @@ end
             @test !CodeDiffs.issame(@code_diff :(1+2) :(2+2))
             a = :(1+2)
             @test !CodeDiffs.issame(@code_diff :($a) :(2+2))
+
+            @test (@code_for io=String :(1)) == (@code_for io=String :(1)) != (@code_for io=String :(2))
+            @test (@code_for io=String :(1+2)) == (@code_for io=String :($a)) != (@code_for io=String :(2+2))
         end
 
         @testset "Extra" begin
             d1 = @code_diff extra_1=(; type=:native, debuginfo=:none) extra_2=(; type=:llvm, color=false) f() f()
             d2 = @code_diff type_1=:native debuginfo_1=:none type_2=:llvm color_2=false f() f()
             @test d1 == d2
+
+            c1 = @code_for io=String extra=(; type=:native, debuginfo=:none) f()
+            @test d1.highlighted_before == c1
         end
     end
 

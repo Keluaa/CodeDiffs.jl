@@ -11,7 +11,7 @@ using Markdown
 using StringDistances
 using WidthLimitedIO
 
-export @code_diff, code_diff
+export @code_diff, code_diff, @code_for
 
 # From https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_(Control_Sequence_Introducer)_sequences
 const ANSI_REGEX = r"(?>\x1B\[[0-?]*[ -/]*[@-~])+"

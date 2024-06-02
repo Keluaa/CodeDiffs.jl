@@ -19,6 +19,10 @@ Syntax highlighting for Julia AST is also supported:
 
 ![](assets/ast_diff.gif)
 
+The `@code_for` macro is a convinence macro which will give you only one side of `@code_diff`'s
+output, therefore it behaves like all `@code_native`/`@code_**` macros but with seamless
+support for GPU and additional cleanup functionalities.
+
 ## Supported languages
 
 - `:native` native CPU assembly (output of `@code_native`)
