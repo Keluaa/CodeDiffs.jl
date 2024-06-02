@@ -58,6 +58,7 @@ julia> @code_diff type=:llvm debuginfo=:none color=false f1(1) f2(1)
 
 ```@docs
 @code_diff
+@code_for
 code_diff
 code_for_diff
 CodeDiff

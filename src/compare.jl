@@ -58,7 +58,7 @@ end
 
 
 """
-    code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+    code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, cleanup=true, kwargs...)
     code_for_diff(expr::Expr; type=:ast, color=true, kwargs...)
 
 Fetches the code of `f` with [`get_code(Val(type), f, types; kwargs...)`](@ref), cleans it
@@ -66,22 +66,22 @@ up with [`cleanup_code(Val(type), code)`](@ref) and highlights it using the appr
 [`code_highlighter(Val(type))`](@ref).
 The result is two `String`s: one without and the other with highlighting.
 """
-function code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, kwargs...)
+function code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, io=nothing, cleanup=true, kwargs...)
     @nospecialize(f, types)
     code = get_code(Val(type), f, types; kwargs...)
-    return code_for_diff(code, Val(type), color)
+    return code_for_diff(code, Val(type), color, cleanup)
 end
 
-function code_for_diff(expr::Union{Expr, QuoteNode}; type=:ast, color=true, kwargs...)
+function code_for_diff(expr::Union{Expr, QuoteNode}; type=:ast, color=true, io=nothing, cleanup=true, kwargs...)
     if type !== :ast
         throw(ArgumentError("wrong type for `$(typeof(expr))`: `$type`, expected `:ast`"))
     end
     code = code_ast(expr; kwargs...)
-    return code_for_diff(code, Val(type), color)
+    return code_for_diff(code, Val(type), color, cleanup)
 end
 
-function code_for_diff(code, type::Val, color)
-    code = cleanup_code(type, code)
+function code_for_diff(code, type::Val, color, cleanup)
+    code = cleanup ? cleanup_code(type, code) : code
 
     code_str = sprint(code_highlighter(type), code; context=(:color => false,))
     code_str = replace(code_str, ANSI_REGEX => "")  # Make sure there is no decorations
@@ -174,7 +174,7 @@ end
 
 
 """
-    @code_diff [type=:native] [color=true] [option=value...] f₁(...) f₂(...)
+    @code_diff [type=:native] [color=true] [cleanup=true] [option=value...] f₁(...) f₂(...)
     @code_diff [option=value...] :(expr₁) :(expr₂)
 
 Compare the methods called by the `f₁(...)` and `f₂(...)` or the expressions `expr₁` and
@@ -185,6 +185,9 @@ to the call of `get_code` for `f₁` and `f₂` respectively. They can also be p
 `extra_1` and `extra_2`.
 
 To compare `Expr` in variables, use `@code_diff :(\$a) :(\$b)`.
+
+`cleanup == true` will use [`cleanup_code`](@ref) to make the codes more prone to comparisons
+(e.g. by renaming variables with names which change every time).
 
 ```julia
 # Default comparison
@@ -270,6 +273,95 @@ macro code_diff(args...)
             local code₁, hl_code₁ = $code_for_diff₁
             local code₂, hl_code₂ = $code_for_diff₂
             code_diff(code₁, code₂, hl_code₁, hl_code₂)
+        end
+    end
+end
+
+
+"""
+    @code_for [type=:native] [color=true] [io=stdout] [cleanup=true] [option=value...] f(...)
+    @code_for [option=value...] :(expr)
+
+Display the code of `f(...)` to `io` for the given code `type`, or the expression `expr`
+(AST only).
+
+`option`s are passed to [`get_code`](@ref).
+To display an `Expr` in a variable, use `@code_for :(\$expr)`.
+
+`io` defaults to `stdout`. If `io == String`, then the code is not printed and is simply
+returned.
+
+If the `type` option is the first option, `"type"` can be omitted: i.e. `@code_for :llvm f()`
+is valid.
+
+`cleanup == true` will use [`cleanup_code`](@ref) on the code.
+
+```julia
+# Default comparison
+@code_for type=:native f()
+
+# Without debuginfo
+@code_for type=:llvm debuginfo=:none f()
+
+# Options sets can be passed from variables with the `extra` options
+opts = (; debuginfo=:none, world=Base.get_world_counter())
+@code_for type=:typed extra=opts f()
+
+# Same as above, but shorter since we can omit "type"
+@code_for :typed extra=opts f()
+```
+"""
+macro code_for(args...)
+    isempty(args) && return :(throw(ArgumentError("@code_for takes at least 1 argument")))
+    raw_options = collect(args[1:end-1])
+    code = args[end]
+
+    options = Expr[]
+    for (i, option) in enumerate(raw_options)
+        if option isa Symbol
+            # Shortcut allowing to write `opt` instead of `opt=opt`
+            option = Expr(:(=), option, option)
+        elseif option isa QuoteNode && option.value isa Symbol && i == 1
+            # Allow the first option to be the `type`, to write `@code_for :native f()`
+            option = Expr(:(=), :type, option)
+        elseif !(Base.isexpr(option, :(=), 2) && option.args[1] isa Symbol)
+            opt_error = "options must be in the form `key=value`, got: `$option`"
+            return :(throw(ArgumentError($opt_error)))
+        end
+
+        opt_name = option.args[1]::Symbol
+        if opt_name === :extra
+            opt_splat = Expr(:..., esc(option.args[2]))
+            push!(options, opt_splat)
+        else
+            kw_option = Expr(:kw, opt_name, esc(option.args[2]))
+            push!(options, kw_option)
+        end
+    end
+
+    # Simple values such as `:(1)` are stored in a `QuoteNode`
+    code isa QuoteNode && (code = Expr(:quote, Expr(:block, code.value)))
+
+    diff_options = esc(gensym(:diff_options))
+
+    if Base.isexpr(code, :quote)
+        code = esc(code)
+        code_for = :($code_for_diff($code; type=:ast, $(options...)))
+    else
+        code_for = gen_code_for_diff_call(__module__, code, [:($diff_options...)])
+        is_error_expr(code_for) && return code_for
+    end
+
+    return quote
+        let
+            local $diff_options = (; $(options...))
+            local io = get($diff_options, :io, stdout)
+            local _, hl_code = $code_for
+            if io === $String
+                chomp(hl_code)
+            else
+                printstyled(io, chomp(hl_code), '\n')
+            end
         end
     end
 end
