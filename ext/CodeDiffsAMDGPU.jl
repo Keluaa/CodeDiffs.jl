@@ -4,14 +4,18 @@ using CodeDiffs
 using AMDGPU
 import AMDGPU: GPUCompiler
 
-gpu_compiler_kwargs() = [:kernel]
+if pkgversion(AMDGPU) < v"0.8.11"
+    gpu_compiler_kwargs() = [:kernel, :name]
+else
+    gpu_compiler_kwargs() = [:kernel, :name, :unsafe_fp_atomics]
+end
 
 include("gpu_common.jl")
 
 
-function gpu_compiler_job(mi::Core.MethodInstance; kernel=false)
-    config = AMDGPU.compiler_config(AMDGPU.device(); kernel)
-    return AMDGPU.CompilerJob(mi, config)
+function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
+    config = AMDGPU.Compiler.compiler_config(AMDGPU.device(); kwargs...)
+    return AMDGPU.Compiler.CompilerJob(mi, config)
 end
 
 
@@ -34,7 +38,14 @@ CodeDiffs.code_highlighter(::Val{:rocm_llvm})  = CodeDiffs.code_highlighter(Val{
 # no highlighting for GCN (unsupported by GPUCompiler.jl)
 
 CodeDiffs.cleanup_code(::Val{:rocm_llvm}, c) = CodeDiffs.replace_llvm_module_name(c)
+
 CodeDiffs.cleanup_code(::Val{:gcn}, c) = CodeDiffs.cleanup_code(Val{:rocm_native}(), c)
-CodeDiffs.cleanup_code(::Val{:rocm_native}, c) = CodeDiffs.replace_llvm_module_name(c)
+function CodeDiffs.cleanup_code(::Val{:rocm_native}, c)
+    c = CodeDiffs.replace_llvm_module_name(c)
+    # Remove the hundreds of '.ident "clang version ..."' lines
+    c = replace(c, r"\t\.ident\t.+\n" => "")
+    # We could also remove everything after the "; -- End function", if anybody wants it
+    return c
+end
 
 end
