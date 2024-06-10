@@ -3,7 +3,7 @@
 
 function test_one_code_type_diff(code_type, f₁, args₁, f₂, args₂; extra...)
     color = true
-    unreliable_code = code_type in ()  # TODO?
+    unreliable_code = code_type in ()
 
     diff = @code_diff type=code_type color extra_1=extra extra_2=extra f₁(args₁...) f₁(args₁...)
     @test CodeDiffs.issame(diff) skip=unreliable_code
@@ -36,8 +36,9 @@ end
 
 @testset "Basics" begin
     N = 2^12
-    x_d = oneAPI.rand(Float64, N)
-    y_d = oneAPI.rand(Float64, N)
+    # Use Float32 just in case the GPU doesn't support Float64
+    x_d = oneAPI.rand(Float32, N)
+    y_d = oneAPI.rand(Float32, N)
 
     function gpu_add!(y, x)
         index = get_global_id(0)
