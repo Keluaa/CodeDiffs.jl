@@ -10,8 +10,8 @@ const USE_CUSTOM_NATIVE_FUNC = true
 include("gpu_common.jl")
 
 
-function gpu_compiler_job(mi::Core.MethodInstance; kernel=false)
-    config = Metal.compiler_config(Metal.device(); kernel)
+function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
+    config = Metal.compiler_config(Metal.device(); kwargs...)
     return Metal.CompilerJob(mi, config)
 end
 
