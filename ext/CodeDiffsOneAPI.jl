@@ -9,8 +9,8 @@ gpu_compiler_kwargs() = oneAPI.COMPILER_KWARGS
 include("gpu_common.jl")
 
 
-function gpu_compiler_job(mi::Core.MethodInstance; kernel=false)
-    config = oneAPI.compiler_config(oneAPI.device(); kernel)
+function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
+    config = oneAPI.compiler_config(oneAPI.device(); kwargs...)
     return oneAPI.CompilerJob(mi, config)
 end
 
