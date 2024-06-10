@@ -3,7 +3,7 @@
 
 function test_rocm_code_type_diff(code_type, f₁, args₁, f₂, args₂; extra...)
     color = true
-    unreliable_code = code_type in ()  # TODO?
+    unreliable_code = code_type in ()
 
     diff = @code_diff type=code_type color extra_1=extra extra_2=extra f₁(args₁...) f₁(args₁...)
     @test CodeDiffs.issame(diff) skip=unreliable_code
