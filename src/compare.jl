@@ -100,12 +100,13 @@ argconvert(@nospecialize(code_type), arg) = arg
 extract_extra_options(@nospecialize(f), _) = (;)
 separate_kwargs(code_type::Val, args...; kwargs...) = (argconvert.(Ref(code_type), args), values(kwargs))
 is_error_expr(expr) = Base.isexpr(expr, :call) && expr.args[1] in (:error, :throw)
+is_call_expr(expr) = Base.isexpr(expr, :call) || (Base.isexpr(expr, :(.), 2) && Base.isexpr(expr.args[2], :tuple))
 
 
 function gen_code_for_diff_call(mod, expr, diff_options)
     # `diff_options` must be already `esc`aped, but not `expr`
 
-    if !Base.isexpr(expr, [:call, :(.)])
+    if !is_call_expr(expr)
         error_str = "Expected call (or dot call) to function, got: $expr"
         return :(throw(ArgumentError($error_str)))
     end
@@ -170,6 +171,23 @@ function gen_code_for_diff_call(mod, expr, diff_options)
             $code_for_diff_wh_kw
         end
     end)
+end
+
+
+function code_diff_for_expr(code_expr, options, mod)
+    if is_call_expr(code_expr)
+        # Generic call comparison
+        return gen_code_for_diff_call(mod, code_expr, options)
+    else
+        if Base.isexpr(code_expr, :quote)
+            # AST comparison
+            type_guess = (Expr(:kw, :type, QuoteNode(:ast)),)
+        else
+            # Mystery comparison
+            type_guess = ()
+        end
+        return :($code_for_diff($(esc(code_expr)); $(type_guess...), $(options...)))
+    end
 end
 
 
@@ -256,17 +274,10 @@ macro code_diff(args...)
     code₁ isa QuoteNode && (code₁ = Expr(:quote, Expr(:block, code₁.value)))
     code₂ isa QuoteNode && (code₂ = Expr(:quote, Expr(:block, code₂.value)))
 
-    if Base.isexpr(code₁, :quote) && Base.isexpr(code₂, :quote)
-        code₁ = esc(code₁)
-        code₂ = esc(code₂)
-        code_for_diff₁ = :($code_for_diff($code₁; type=:ast, $(options₁...)))
-        code_for_diff₂ = :($code_for_diff($code₂; type=:ast, $(options₂...)))
-    else
-        code_for_diff₁ = gen_code_for_diff_call(__module__, code₁, options₁)
-        code_for_diff₂ = gen_code_for_diff_call(__module__, code₂, options₂)
-        is_error_expr(code_for_diff₁) && return code_for_diff₁
-        is_error_expr(code_for_diff₂) && return code_for_diff₂
-    end
+    code_for_diff₁ = code_diff_for_expr(code₁, options₁, __module__)
+    code_for_diff₂ = code_diff_for_expr(code₂, options₂, __module__)
+    is_error_expr(code_for_diff₁) && return code_for_diff₁
+    is_error_expr(code_for_diff₂) && return code_for_diff₂
 
     return quote
         let
@@ -342,15 +353,10 @@ macro code_for(args...)
     # Simple values such as `:(1)` are stored in a `QuoteNode`
     code isa QuoteNode && (code = Expr(:quote, Expr(:block, code.value)))
 
+    # Place the diff options in a temp variable in order to extract `io` at runtime
     diff_options = esc(gensym(:diff_options))
-
-    if Base.isexpr(code, :quote)
-        code = esc(code)
-        code_for = :($code_for_diff($code; type=:ast, $(options...)))
-    else
-        code_for = gen_code_for_diff_call(__module__, code, [:($diff_options...)])
-        is_error_expr(code_for) && return code_for
-    end
+    code_for = code_diff_for_expr(code, [:($diff_options...)], __module__)
+    is_error_expr(code_for) && return code_for
 
     return quote
         let

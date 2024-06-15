@@ -461,15 +461,15 @@ end
 
     @testset "Macros" begin
         @testset "error" begin
-            @test_throws "Expected call" @code_diff "f()" g()
-            @test_throws "Expected call" @code_diff f() "g()"
-            @test_throws "Expected call" @code_diff "f()" "g()"
-            @test_throws "Expected call" @code_diff a b
+            @test_throws MethodError @code_diff "f()" g()
+            @test_throws MethodError @code_diff f() "g()"
+            @test_throws MethodError @code_diff "f()" "g()"
+            @test_throws UndefVarError @code_diff a b
             @test_throws "`key=value`, got: `a + 1`" @code_diff a+1 b c
             @test_throws "world age" @code_diff type=:ast world_1=1 f() f()
 
-            @test_throws "Expected call" @code_for "f()"
-            @test_throws "Expected call" @code_for a
+            @test_throws MethodError @code_for "f()"
+            @test_throws UndefVarError @code_for a
             @test_throws "`key=value`, got: `a + 1`" @code_for a+1 b c
             @test_throws "world age" @code_for type=:ast world=1 f()
         end
