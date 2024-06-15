@@ -99,7 +99,7 @@ function check_diff_display_order(diff::CodeDiffs.CodeDiff, order::Vector{<:Pair
             @test first(order[order_idx]) === nothing
             @test occursin(last(order[order_idx]), ylines[idx])
         elseif state === :changed
-            line_diff = diff.changed[idx][2]
+            line_diff = diff.changed[idx][3]
             @test occursin(first(order[order_idx]), line_diff.before)
             @test occursin(last(order[order_idx]), line_diff.after)
         else
