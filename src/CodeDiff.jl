@@ -18,8 +18,11 @@ Fancy REPL output is done with [`side_by_side_diff`](@ref).
 struct CodeDiff <: DeepDiffs.DeepDiff
     before::String
     after::String
-    changed::Dict{Int, Tuple{Vector{Int}, DeepDiffs.StringDiff}}  # line idx => (line idxs added before the change, change diff)
-    ignore_added::Set{Int}  # Line idxs which are part of `changed`, including line idxs added before changes
+    # line idx => (line idxs added before the change, line after change, change diff)
+    changed::Dict{Int, Tuple{Vector{Int}, Int, DeepDiffs.StringDiff}}
+    # Line idxs which are part of `changed`, including line idxs added before changes
+    ignore_added::Set{Int}
+    # Line by line diff, without highlighting
     diff::DeepDiffs.VectorDiff
     highlighted_before::String
     highlighted_after::String
@@ -67,7 +70,7 @@ function Base.show(io::IO, diff::CodeDiff)
             printstyled(io, "~ ", color=:yellow)
             io_buf = IOBuffer()
             io_ctx = IOContext(io_buf, io)
-            Base.show(io_ctx, diff.changed[idx][2])
+            Base.show(io_ctx, diff.changed[idx][3])
             printstyled(io, String(take!(io_buf))[2:end-1])  # unquote the line diff
         else
             print(io, "  ", xlines[idx])
@@ -105,8 +108,9 @@ function optimize_line_changes!(diff::CodeDiff; dist=StringDistances.Levenshtein
             changed = false
             for (li, removed_line) in enumerate(previously_removed[removed_start:end])
                 if StringDistances.compare(xlines[removed_line], ylines[idx], dist) ≥ tol
-                    # `(lines added before this changed line, change diff)`
-                    diff.changed[removed_line] = (copy(added_before), DeepDiffs.deepdiff(xlines[removed_line], ylines[idx]))
+                    # `(lines added before this changed line, ylines idx, change diff)`
+                    diff.changed[removed_line] =
+                        (copy(added_before), idx, DeepDiffs.deepdiff(xlines[removed_line], ylines[idx]))
                     if !isempty(added_before)
                         push!(diff.ignore_added, added_before...)
                         empty!(added_before)
@@ -134,7 +138,7 @@ function DeepDiffs.visitall(f, diff::CodeDiff)
     DeepDiffs.visitall(diff.diff) do idx, state, last
         if state == :removed
             if haskey(diff.changed, idx)
-                added_lines_before, _ = diff.changed[idx]
+                added_lines_before, _, _ = diff.changed[idx]
                 for line_idx in added_lines_before
                     f(line_idx, :added, false)
                 end

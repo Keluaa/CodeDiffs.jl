@@ -39,7 +39,9 @@ function print_columns(io, width, left_line, sep, right_line, empty_line, tab_re
 end
 
 
-function print_columns_change(io, width, line_diff, highlighted_left, sep, empty_line, tab_replacement)
+function print_columns_change(
+    io, width, line_diff, highlighted_left, highlighted_right, sep, empty_line, tab_replacement
+)
     wio = TextWidthLimiter(IOBuffer(), width)
     wio_ctx = IOContext(wio, io)
 
@@ -52,7 +54,7 @@ function print_columns_change(io, width, line_diff, highlighted_left, sep, empty
 
     printstyled(io, sep)
 
-    printstyled_code_line_diff(wio_ctx, line_diff, highlighted_left, false, tab_replacement)
+    printstyled_code_line_diff(wio_ctx, line_diff, highlighted_right, false, tab_replacement)
     right_len = wio.width
     printstyled(io, String(take!(wio)))
     if right_len < width
@@ -62,8 +64,8 @@ function print_columns_change(io, width, line_diff, highlighted_left, sep, empty
 end
 
 
-function next_ansi_sequence(str, idx, str_len)
-    m = (1 ≤ idx ≤ str_len) ? match(ANSI_REGEX, str, idx) : nothing
+function next_ansi_sequence(str, idx)
+    m = (1 ≤ idx ≤ ncodeunits(str)) ? match(ANSI_REGEX, str, idx) : nothing
     if m === nothing
         return typemax(idx), ""
     else
@@ -82,9 +84,10 @@ const ANSI_GREEN_FGR = "\e[32m"
 
 
 function printstyled_code_line_diff(
-    io::IO, diff::DeepDiffs.StringDiff, highlighted_left, removed_only::Bool,
+    io::IO, diff::DeepDiffs.StringDiff, highlighted_side, removed_only::Bool,
     tab_replacement
 )
+    # Vectors of `Char`
     xchars = DeepDiffs.before(diff.diff)
     ychars = DeepDiffs.after(diff.diff)
 
@@ -98,36 +101,44 @@ function printstyled_code_line_diff(
         added_bkg_color = ""
     end
 
-    hl_length = length(highlighted_left)
-    idx_before_next_ansi, ansi_seq = next_ansi_sequence(highlighted_left, 1, hl_length)
+    idx_before_next_ansi, ansi_seq = next_ansi_sequence(highlighted_side, 1)
     highlighted_offset = 0
+    cu_idx = 0
 
     full_tab_len = length(tab_replacement)
     column_pos = 1
     tmp_io = IOBuffer()
     prev_state = :same
     DeepDiffs.visitall(diff.diff) do idx, state, _
-        if idx + highlighted_offset ≥ idx_before_next_ansi
-            write(tmp_io, ansi_seq)
-            if prev_state !== :same && occursin("\e[0m", ansi_seq)
-                prev_state = :same
-            end
-            highlighted_offset += length(ansi_seq)
-            idx_before_next_ansi, ansi_seq =
-                next_ansi_sequence(highlighted_left, idx + highlighted_offset, hl_length)
-        end
+        # `idx` is a character index, not a code unit index
 
         if state === :removed
             !removed_only && return
-            prev_state !== :removed && write(tmp_io, removed_bkg_color)
             c = xchars[idx]
         elseif state === :added
             removed_only && return
-            prev_state !== :added && write(tmp_io, added_bkg_color)
             c = ychars[idx]
         else
-            prev_state !== :same && write(tmp_io, default_bkg)
             c = xchars[idx]
+        end
+
+        cu_idx += ncodeunits(c)  # `cu_idx` is `idx` in code units
+
+        if cu_idx + highlighted_offset ≥ idx_before_next_ansi 
+            write(tmp_io, ansi_seq)
+            if prev_state !== :same && occursin("\e[0m", ansi_seq)
+                prev_state = :same  # this will make sure the next char will have the right background 
+            end
+            highlighted_offset += ncodeunits(ansi_seq)
+            idx_before_next_ansi, ansi_seq =
+                next_ansi_sequence(highlighted_side, idx_before_next_ansi + ncodeunits(ansi_seq))
+        end
+
+        if state !== prev_state
+            if     state === :removed  write(tmp_io, removed_bkg_color)
+            elseif state === :added    write(tmp_io, added_bkg_color)
+            else#= state === :same =#  write(tmp_io, default_bkg)
+            end
         end
 
         if c == '\t'
@@ -143,7 +154,7 @@ function printstyled_code_line_diff(
     end
 
     prev_state !== :same && write(tmp_io, default_bkg)
-    write(tmp_io, @view highlighted_left[idx_before_next_ansi:end])
+    write(tmp_io, @view highlighted_side[idx_before_next_ansi:end])
 
     printstyled(io, String(take!(tmp_io)))
 end
@@ -230,8 +241,8 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
             print_line_num(:right)
         elseif state === :changed
             print_line_num(:left)
-            _, line_diff = diff.changed[idx]
-            print_columns_change(io, column_width, line_diff, xlines[idx], sep_changed_to, empty_column, tab)
+            _, y_idx, line_diff = diff.changed[idx]
+            print_columns_change(io, column_width, line_diff, xlines[idx], ylines[y_idx], sep_changed_to, empty_column, tab)
             print_line_num(:right)
         else
             print_line_num(:left)
