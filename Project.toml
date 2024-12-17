@@ -4,6 +4,7 @@ authors = ["Luc Briand <34173752+Keluaa@users.noreply.github.com> and contributo
 version = "1.0.0-DEV"
 
 [deps]
+Binutils_jll = "489e263e-5428-50b0-a723-147a141b401e"
 CodeTracking = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
 DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"

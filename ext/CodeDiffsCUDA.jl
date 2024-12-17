@@ -65,6 +65,7 @@ function CodeDiffs.cleanup_code(::Val{:ptx}, c)
     # the PTX header, and have as well parameters named after the function and can inherit
     # the `globalUniqueGeneratedNames` value.
     c = CodeDiffs.replace_llvm_module_name(c)
+    c = CodeDiffs.demangle_all(c)
     # I don't know what `callseq` indicates in comments, but the numbers after change at every call
     return replace(c, r" // callseq .+$"m => "")
 end
@@ -75,6 +76,7 @@ function CodeDiffs.cleanup_code(::Val{:sass}, c)
     # same input, as well as some immediate values (maybe related to the functions order in PTX?).
     # Some instructions (only `MOV` from what I saw) might be ordered differently, or even
     # in different numbers (max of what I could see is 1, but still surprising).
+    c = CodeDiffs.demangle_all(c)
     return CodeDiffs.replace_llvm_module_name(c)
 end
 
