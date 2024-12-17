@@ -143,6 +143,71 @@ function replace_llvm_module_name(code::AbstractString, function_name)
 end
 
 
+_DEMANGLE_TOOL = missing
+function demangle_tool()
+    # `missing` => uninitialized
+    # `nothing` => no tool found
+    !ismissing(_DEMANGLE_TOOL) && return _DEMANGLE_TOOL
+
+    tool_path = get(ENV, "JULIA_CODE_DIFFS_DEMANGLER", nothing)
+
+    if isnothing(tool_path)
+        # Try to find the LLVM and GNU demanglers from the PATH
+        for name in (`llvm-cxxfilt`, `cxxfilt`)
+            try
+                success(name)
+                tool_path = name
+                break
+            catch
+                # `success` only throws if the process cannot start, i.e. path not found
+            end
+        end
+    end
+
+    if isnothing(tool_path) && Binutils_jll.is_available()
+        # The binutils cxxfilt is GNU's, not llvm-cxxfilt, there may be some differences
+        # in output.
+        tool_path = Binutils_jll.cxxfilt()
+    end
+
+    global _DEMANGLE_TOOL = tool_path
+    return _DEMANGLE_TOOL
+end
+
+
+"""
+    demangle(name::AbstractString)
+
+Demangle `name` using the `llvm-cxxfilt` or `cxxfilt` utilities.
+
+If the ENV variable `"JULIA_CODE_DIFFS_DEMANGLER"` is set, then it is used as an absolute
+path to a demangling tool.
+
+!!! note
+
+    On Windows, there is no default demangler tool. `name` is returned as-is.
+"""
+function demangle(name::AbstractString)
+    tool_cmd = demangle_tool()
+    isnothing(tool_cmd) && return name
+    return readchomp(`$tool_cmd $name`)
+end
+
+
+# Matches Itanium ABI mangled names
+# See https://github.com/llvm/llvm-project/blob/56cb55429199435a78f6e836f52cf41577406e90/llvm/lib/Demangle/Demangle.cpp#L40
+# And https://github.com/llvm/llvm-project/blob/56cb55429199435a78f6e836f52cf41577406e90/llvm/tools/llvm-cxxfilt/llvm-cxxfilt.cpp#L137
+const MANGLED_NAME_REGEX = r"\b_{0,4}Z[0-9A-Za-z_.$]+"
+
+
+"""
+    demangle_all(code::AbstractString)
+
+Find and replace all mangled names in `code` with their demangled counterparts.
+"""
+demangle_all(code::AbstractString) = replace(code, MANGLED_NAME_REGEX => demangle)
+
+
 """
     cleanup_code(::Val{code_type}, code)
 

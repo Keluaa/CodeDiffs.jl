@@ -87,6 +87,8 @@ cleanup_code
 replace_llvm_module_name
 function_unique_gen_name_regex
 global_var_unique_gen_name_regex
+demangle
+demangle_all
 ```
 
 # Diff display
