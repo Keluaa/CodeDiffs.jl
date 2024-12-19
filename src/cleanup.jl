@@ -194,10 +194,37 @@ function demangle(name::AbstractString)
 end
 
 
+"""
+    mangled_base_name(name::AbstractString)
+
+Attempt to return the base name in the mangled function `name`.
+If it fails, `nothing` is returned.
+"""
+function mangled_base_name(name::AbstractString)
+    # Suppose Itanium encoding
+    encoding_prefix = findfirst(r"_{0,4}Z", name)
+    isnothing(encoding_prefix) && return nothing
+
+    # The name length precedes the base name
+    raw_name_length = findnext(r"\d+", name, last(encoding_prefix)+1)
+    isnothing(raw_name_length) && return nothing
+    name_length = tryparse(Int, @view name[raw_name_length])
+    isnothing(name_length) && return nothing
+
+    name_start = last(raw_name_length)+1
+    return @view name[name_start:name_start+name_length-1]
+end
+
+
 # Matches Itanium ABI mangled names
 # See https://github.com/llvm/llvm-project/blob/56cb55429199435a78f6e836f52cf41577406e90/llvm/lib/Demangle/Demangle.cpp#L40
 # And https://github.com/llvm/llvm-project/blob/56cb55429199435a78f6e836f52cf41577406e90/llvm/tools/llvm-cxxfilt/llvm-cxxfilt.cpp#L137
-const MANGLED_NAME_REGEX = r"\b_{0,4}Z[0-9A-Za-z_.$]+"
+const MANGLED_NAME_REGEX = r"\b(_{0,4}Z[0-9A-Za-z_.$]+)"m
+
+
+# Matches the mangled name of a function definition in LLVM IR
+# See https://llvm.org/docs/LangRef.html#functions
+const LLVM_IR_FUNC_NAME_MANGLED_REGEX = r"define\s[^@]*@"m * MANGLED_NAME_REGEX
 
 
 """
@@ -209,11 +236,38 @@ demangle_all(code::AbstractString) = replace(code, MANGLED_NAME_REGEX => demangl
 
 
 """
+    clean_function_name(name_regex, code, replacement=nothing)
+
+Replace occurences of `name_regex` in the `code` by `replacement`.
+`replacement` defaults to the demangled function name.
+"""
+function clean_function_name(name_regex, c, replacement=nothing)
+    # TODO: what happens when there is more than one function in a module? is the result wrong?
+    m = match(name_regex, c)
+    isnothing(m) && return c
+    mangled_name = m[1]
+
+    if isnothing(replacement)
+        # Simplest demangling: '_Z6blabla...' => 'blabla'
+        replacement = mangled_base_name(mangled_name)
+        if isnothing(replacement)
+            # Complete demangling: the main disadvantage is that the demangled name might
+            # be very long, to the point where is becomes barely readable and useless.
+            replacement = demangle(mangled_name)
+        end
+    end
+
+    return replace(c, mangled_name => replacement)
+end
+
+
+"""
     cleanup_code(::Val{code_type}, code)
 
 Perform minor changes to `code` to improve readability and the quality of the differences.
 
 Currently only [`replace_llvm_module_name`](@ref) is applied to `:native` and `:llvm` code.
+For GPU code much more cleanup is done.
 """
 cleanup_code(_, c) = c
 
