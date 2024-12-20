@@ -20,18 +20,20 @@ end
 function extract_ka_backend_kwargs end
 
 
-function code_native(f, types::Type{<:Tuple}, ::Nothing; kwargs...)
+function code_native(f, types::Type{<:Tuple}, ::Nothing; dbinfo=true, debuginfo=nothing, kwargs...)
     @nospecialize(f, types)
     io_buf = IOBuffer()
     io_ctx = IOContext(io_buf, :color => false)
-    InteractiveUtils.code_native(io_ctx, f, types; kwargs...)
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
+    InteractiveUtils.code_native(io_ctx, f, types; debuginfo, kwargs...)
     return String(take!(io_buf))
 end
 
 
 function code_native(
     f, types::Type{<:Tuple}, world::Integer;
-    dump_module=true, syntax=:intel, raw=false, debuginfo=:default, binary=false
+    dbinfo=true, debuginfo=nothing,
+    dump_module=true, syntax=:intel, raw=false, binary=false
 )
     @nospecialize(f, types)
     mi = method_instance(f, types, world)
@@ -42,6 +44,7 @@ function code_native(
         params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
     end
 
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
     if debuginfo === :default
         debuginfo = :source
     elseif debuginfo !== :source && debuginfo !== :none
@@ -74,18 +77,20 @@ code_native(@nospecialize(f), @nospecialize(types); world=nothing, kwargs...) =
     code_native(f, types, world; kwargs...)
 
 
-function code_llvm(f, types::Type{<:Tuple}, ::Nothing; kwargs...)
+function code_llvm(f, types::Type{<:Tuple}, ::Nothing; dbinfo=true, debuginfo=nothing, kwargs...)
     @nospecialize(f, types)
     io_buf = IOBuffer()
     io_ctx = IOContext(io_buf, :color => false)
-    InteractiveUtils.code_llvm(io_ctx, f, types; kwargs...)
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
+    InteractiveUtils.code_llvm(io_ctx, f, types; debuginfo, kwargs...)
     return String(take!(io_buf))
 end
 
 
 function code_llvm(
     f, types::Type{<:Tuple}, world::Integer;
-    raw=false, dump_module=false, optimize=true, debuginfo=:default
+    dbinfo=true, debuginfo=nothing,
+    raw=false, dump_module=false, optimize=true
 )
     @nospecialize(f, types)
     mi = method_instance(f, types, world)
@@ -96,6 +101,7 @@ function code_llvm(
         params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
     end
 
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
     if debuginfo === :default
         debuginfo = :source
     elseif debuginfo !== :source && debuginfo !== :none
@@ -138,8 +144,9 @@ The Julia-IR code (aka 'typed code') of the method of `f` called with `types`
 
 The function call should only match a single method.
 """
-function code_typed(f, types::Type{<:Tuple}; world=nothing, kwargs...)
+function code_typed(f, types::Type{<:Tuple}; world=nothing, dbinfo=true, debuginfo=nothing, kwargs...)
     @nospecialize(f, types)
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
     if isnothing(world)
         code_info = Base.code_typed(f, types; kwargs...)
     else
@@ -148,12 +155,13 @@ function code_typed(f, types::Type{<:Tuple}; world=nothing, kwargs...)
     return only(code_info)
 end
 
-function code_typed(mi::Core.MethodInstance; world=nothing, kwargs...)
+function code_typed(mi::Core.MethodInstance; world=nothing, dbinfo=true, debuginfo=nothing, kwargs...)
     sig = mi.specTypes
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
     if isnothing(world)
-        code_info = Base.code_typed_by_type(sig; kwargs...)
+        code_info = Base.code_typed_by_type(sig; debuginfo, kwargs...)
     else
-        code_info = Base.code_typed_by_type(sig; world, kwargs...)
+        code_info = Base.code_typed_by_type(sig; world, debuginfo, kwargs...)
     end
     return only(code_info)
 end
@@ -199,7 +207,7 @@ If `prettify == true`, then [`MacroTools.prettify(code; lines, alias)`](https://
 is used to cleanup the AST. `lines == true` will keep the `LineNumberNode`s and `alias == true`
 will replace mangled names (or `gensym`s) by more readable names.
 """
-function code_ast(f, types::Type{<:Tuple}; prettify=true, lines=false, alias=false, kwargs...)
+function code_ast(f, types::Type{<:Tuple}; prettify=true, lines=false, alias=false, dbinfo=true, kwargs...)
     @nospecialize(f, types)
     code = method_to_ast(f, types; kwargs...)
     return code_ast(code; prettify, lines, alias)
@@ -209,7 +217,7 @@ function code_ast(code::QuoteNode; kwargs...)
     return code_ast(Expr(:quote, Expr(:block, code.value)); kwargs...)
 end
 
-function code_ast(code::Expr; prettify=true, lines=false, alias=false)
+function code_ast(code::Expr; prettify=true, lines=false, alias=false, dbinfo=true)
     if prettify
         code = MacroTools.prettify(code; lines, alias)
     end
@@ -221,13 +229,20 @@ end
 @nospecialize
 
 """
-    get_code(::Val{code_type}, f, types; world=nothing, kwargs...)
+    get_code(::Val{code_type}, f, types; world=nothing, dbinfo=true, kwargs...)
 
 The code object of `code_type` for `f`. Dispatch depends on `code_type`:
  - `:native`: [`code_native`](@ref)
  - `:llvm`: [`code_llvm`](@ref)
  - `:typed`: [`code_typed`](@ref)
  - `:ast`: [`code_ast`](@ref)
+
+`world` is the world age of the code to get.
+If unsupported by `code_type` and `!isnothing(world)`, an error is raised.
+
+`dbinfo` is a superset of the `debuginfo=:source` or `debuginfo=:none` options for
+`code_llvm` and `code_typed`. If unsupported by `code_type`, it should be ignored.
+The `debuginfo` option takes precedence over `dbinfo` if `code_type` supports it.
 """
 get_code(code_type, f, types; kwargs...) = get_code_dispatch(code_type, f, types; kwargs...)
 
