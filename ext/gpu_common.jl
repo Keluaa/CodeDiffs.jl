@@ -48,14 +48,15 @@ function code_gpu_typed(job::GPUCompiler.CompilerJob; kwargs...)
 end
 
 
-function code_gpu_llvm(job::GPUCompiler.CompilerJob; kwargs...)
+function code_gpu_llvm(job::GPUCompiler.CompilerJob; dbinfo=true, debuginfo=nothing, kwargs...)
     @nospecialize(job)
-    return sprint((io, job) -> GPUCompiler.code_llvm(io, job; kwargs...), job; context=:color=>false)
+    debuginfo = @something debuginfo (dbinfo ? :source : :none)
+    return sprint((io, job) -> GPUCompiler.code_llvm(io, job; debuginfo, kwargs...), job; context=:color=>false)
 end
 
 
 @static !@isdefined(USE_CUSTOM_NATIVE_FUNC) && \
-function code_gpu_native(job::GPUCompiler.CompilerJob; kwargs...)
+function code_gpu_native(job::GPUCompiler.CompilerJob; dbinfo=true, kwargs...)
     @nospecialize(job)
     return sprint((io, job) -> GPUCompiler.code_native(io, job; kwargs...), job; context=:color=>false)
 end

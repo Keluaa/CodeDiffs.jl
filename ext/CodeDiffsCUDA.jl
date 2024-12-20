@@ -28,13 +28,13 @@ function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
 end
 
 
-function code_sass(job::CUDA.CompilerJob; kwargs...)
+function code_sass(job::CUDA.CompilerJob; dbinfo=true, kwargs...)
     @nospecialize(job)
     return sprint((io, job) -> CUDA.code_sass(io, job; kwargs...), job; context=:color=>false)
 end
 
 
-function code_sass(f, types; world=nothing, kwargs...)
+function code_sass(f, types; world=nothing, dbinfo=true, kwargs...)
     @nospecialize(f, types)
     compiler_kwargs, kwargs = split_kwargs(kwargs, gpu_compiler_kwargs())
     job = gpu_compiler_job(f, types, world; compiler_kwargs...)

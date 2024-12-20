@@ -58,29 +58,39 @@ end
 
 
 """
-    code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, cleanup=true, kwargs...)
+    code_for_diff(f, types::Type{<:Tuple};
+        type=:native, color=true, dbinfo=true, cleanup=true, cleanup_opts=(;), kwargs...
+    )
     code_for_diff(expr::Expr; type=:ast, color=true, kwargs...)
 
-Fetches the code of `f` with [`get_code(Val(type), f, types; kwargs...)`](@ref), cleans it
-up with [`cleanup_code(Val(type), code)`](@ref) and highlights it using the appropriate
-[`code_highlighter(Val(type))`](@ref).
+Fetches the code of `f` with [`get_code(Val(type), f, types; dbinfo, kwargs...)`](@ref),
+cleans it up with [`cleanup_code(Val(type), code, dbinfo, cleanup_opts)`](@ref) and
+highlights it using the appropriate [`code_highlighter(Val(type))`](@ref).
 The result is two `String`s: one without and the other with highlighting.
 """
-function code_for_diff(f, types::Type{<:Tuple}; type=:native, color=true, io=nothing, cleanup=true, kwargs...)
+function code_for_diff(
+    f, types::Type{<:Tuple};
+    type=:native, color=true, io=nothing, dbinfo=true, cleanup=true, cleanup_opts=(;),
+    kwargs...
+)
     @nospecialize(f, types)
-    code = get_code(Val(type), f, types; kwargs...)
-    return code_for_diff(code, Val(type), color, cleanup)
+    code = get_code(Val(type), f, types; dbinfo, kwargs...)
+    return code_for_diff(code, Val(type), color, dbinfo, cleanup, cleanup_opts)
 end
 
-function code_for_diff(expr::Union{Expr, QuoteNode}; type=:ast, color=true, io=nothing, cleanup=true, kwargs...)
+function code_for_diff(
+    expr::Union{Expr, QuoteNode};
+    type=:ast, color=true, io=nothing, dbinfo=true, cleanup=true, cleanup_opts=(;),
+    kwargs...
+)
     if type !== :ast
         throw(ArgumentError("wrong type for `$(typeof(expr))`: `$type`, expected `:ast`"))
     end
-    code = code_ast(expr; kwargs...)
-    return code_for_diff(code, Val(type), color, cleanup)
+    code = code_ast(expr; dbinfo, kwargs...)
+    return code_for_diff(code, Val(type), color, dbinfo, cleanup, cleanup_opts)
 end
 
-function code_for_diff(code, type::Val, color, cleanup)
+function code_for_diff(code, type::Val, color, dbinfo, cleanup, cleanup_opts)
     code = cleanup ? cleanup_code(type, code) : code
 
     code_str = sprint(code_highlighter(type), code; context=(:color => false,))
@@ -192,7 +202,7 @@ end
 
 
 """
-    @code_diff [type=:native] [color=true] [cleanup=true] [option=value...] f₁(...) f₂(...)
+    @code_diff [type=:native] [color=true] [cleanup=true] [dbinfo=true] [option=value...] f₁(...) f₂(...)
     @code_diff [option=value...] :(expr₁) :(expr₂)
 
 Compare the methods called by the `f₁(...)` and `f₂(...)` or the expressions `expr₁` and
@@ -206,6 +216,13 @@ To compare `Expr` in variables, use `@code_diff :(\$a) :(\$b)`.
 
 `cleanup == true` will use [`cleanup_code`](@ref) to make the codes more prone to comparisons
 (e.g. by renaming variables with names which change every time).
+
+`dbinfo` is a broader version of the `debuginfo` option of `@code_typed` and `@code_llvm`.
+`dbinfo` works for all code types.
+`dbinfo=true` is equivalent to `debuginfo=:source` (or `:default`) and `dbinfo=false` is
+`debuginfo=:none`.
+For code types with no option to control the verbosity of the output, `dbinfo` is silently
+ignored.
 
 ```julia
 # Default comparison
@@ -290,7 +307,7 @@ end
 
 
 """
-    @code_for [type=:native] [color=true] [io=stdout] [cleanup=true] [option=value...] f(...)
+    @code_for [type=:native] [color=true] [io=stdout] [cleanup=true] [dbinfo=true] [option=value...] f(...)
     @code_for [option=value...] :(expr)
 
 Display the code of `f(...)` to `io` for the given code `type`, or the expression `expr`
@@ -306,6 +323,13 @@ If the `type` option is the first option, `"type"` can be omitted: i.e. `@code_f
 is valid.
 
 `cleanup == true` will use [`cleanup_code`](@ref) on the code.
+
+`dbinfo` is a broader version of the `debuginfo` option of `@code_typed` and `@code_llvm`.
+`dbinfo` works for all code types.
+`dbinfo=true` is equivalent to `debuginfo=:source` (or `:default`) and `dbinfo=false` is
+`debuginfo=:none`.
+For code types with no option to control the verbosity of the output, `dbinfo` is silently
+ignored.
 
 ```julia
 # Default comparison

@@ -12,9 +12,16 @@ Supports:
  - LLVM IR (output of `@code_llvm`, highlighted by `InteractiveUtils.print_llvm`)
  - Typed Julia IR (output of `@code_typed`, highlighted through the `Base.show` method of `Core.CodeInfo`)
  - Julia AST (an `Expr`), highlighting is done with OhMyREPL.jl's Julia syntax highlighting in Markdown code blocks
+ - GPU typed Julia IR / LLVM IR / native assembly (see [Extensions](@ref))
 
-The [`@code_diff`](@ref) macro is the main entry point. If possible, the code type will be
-detected automatically, otherwise add e.g. `type=:llvm` for LLVM IR comparison:
+`CodeDiffs.jl` exports two macros:
+ - [`@code_for`](@ref) will display the code for a function call. The output is
+   cleaned and highlighted to maximize clarity.
+ - [`@code_diff`](@ref) will compare the code of two function calls.
+
+Both support all code types.
+If possible, the code type will be detected automatically, otherwise add e.g.
+`type=:llvm` for LLVM IR comparison:
 
 ```jldoctest f1_vs_f2; setup=:(using CodeDiffs)
 julia> f1(a) = a + 1
@@ -58,7 +65,6 @@ julia> @code_diff type=:llvm debuginfo=:none color=false f1(1) f2(1)
 
 ```@docs
 @code_diff
-@code_for
 code_diff
 code_for_diff
 CodeDiff
@@ -67,6 +73,7 @@ CodeDiff
 # Code fetching
 
 ```@docs
+@code_for
 code_native
 code_llvm
 code_typed

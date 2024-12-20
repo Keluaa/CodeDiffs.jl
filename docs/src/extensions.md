@@ -2,7 +2,9 @@
 CurrentModule = CodeDiffs
 ```
 
-# KernelAbstractions.jl
+# Extensions
+
+## KernelAbstractions.jl
 
 [`@code_diff`](@ref) will automatically detect calls to [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl)
 and get the code for the actual underlying kernel function (whatever the backend is).
@@ -12,7 +14,7 @@ or when calling the kernel (`gpu_kernel(a, b, c; ndrange=1000)`).
 
 There is no support for AST comparison with KA.jl kernels.
 
-# GPU kernels
+## GPU kernels
 
 [`@code_diff`](@ref) supports functions compiled in a GPU context with any of the GPU packages:
 

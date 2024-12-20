@@ -16,7 +16,7 @@ function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
 end
 
 
-function code_gpu_native(job::GPUCompiler.CompilerJob)
+function code_gpu_native(job::GPUCompiler.CompilerJob; dbinfo=true, kwargs...)
     @nospecialize(job)
     return sprint((io, job) -> Metal.code_agx(io, job), job; context=:color=>false)
 end
