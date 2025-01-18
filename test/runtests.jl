@@ -545,6 +545,39 @@ end
         end
     end
 
+    @testset "Demangling" begin
+        @test CodeDiffs.demangle("test") == "test"
+        @test CodeDiffs.demangle("_Z1fv") == "f()"
+        @test CodeDiffs.demangle("_Z1fiPv") == "f(int, void*)"
+        @test CodeDiffs.demangle("_Z1f3ValILi1EE4TypeI5Int64ES2_") == "f(Val<1>, Type<Int64>, Int64)"
+
+        @test CodeDiffs.mangled_base_name("test") === nothing
+        @test CodeDiffs.mangled_base_name("_Ztest") === nothing
+        @test CodeDiffs.mangled_base_name("_Z1f3ValILi1EE4TypeI5Int64ES2_") == "f"
+
+        text_with_no_mangled_name = """
+        This is a function prototype: f()
+        The prototype `f(int, void*)` is a bit more complex.
+        And with type parameters it is a mess, like for `f(Val<1>, Type<Int64>, Int64)`.
+        The string "_Z1fipv" is not a mangled name, but it looks like one.
+        """
+
+        text_with_mangled_names = """
+        This is a function prototype: _Z1fv
+        The prototype `_Z1fiPv` is a bit more complex.
+        And with type parameters it is a mess, like for `_Z1f3ValILi1EE4TypeI5Int64ES2_`.
+        The string "_Z1fipv" is not a mangled name, but it looks like one.
+        """
+
+        @test CodeDiffs.demangle_all(text_with_no_mangled_name) == text_with_no_mangled_name
+        @test CodeDiffs.demangle_all(text_with_mangled_names) == text_with_no_mangled_name
+
+        llvm_ir_function = "define void @_Z1fv({ {}*, i64, i64 }* %0, [1 x {}*]* %1, {}* %2) #0 { }"
+        m = match(CodeDiffs.LLVM_IR_FUNC_NAME_MANGLED_REGEX, llvm_ir_function)
+        @test !isnothing(m)
+        @test m[1] == "_Z1fv"
+    end
+
     include("KernelAbstractions.jl")
 
     CUDA.functional() && include("CUDA.jl")

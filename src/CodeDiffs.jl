@@ -10,7 +10,7 @@ using MacroTools
 using Markdown
 using StringDistances
 using WidthLimitedIO
-using Binutils_jll
+using demumble_jll
 
 export @code_diff, code_diff, @code_for
 
