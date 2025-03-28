@@ -14,6 +14,9 @@ function CodeDiffs.extract_extra_options(@nospecialize(f::Kernel), kwargs)
 end
 
 
+CodeDiffs.extract_ka_backend_kwargs(::Kernel) = (;)
+
+
 function CodeDiffs.get_code(code_type::Val, kernel::Kernel, types::Type{<:Tuple};
     ndrange=nothing, workgroupsize=nothing, kernel_instance=nothing, kwargs...
 )
@@ -29,6 +32,11 @@ function CodeDiffs.get_code(code_type::Val, kernel::Kernel, types::Type{<:Tuple}
         ctx = KernelAbstractions.mkcontext(kernel, block, ndrange, iterspace, dynamic)
     else
         ctx = KernelAbstractions.mkcontext(kernel, ndrange, iterspace)
+    end
+
+    if !isnothing(kernel_instance)
+        backend_kwargs = CodeDiffs.extract_ka_backend_kwargs(kernel_instance)
+        kwargs = merge(backend_kwargs, kwargs)  # always prioritize the users' kwargs
     end
 
     kernel_args = Tuple{typeof(ctx), types.parameters...}
@@ -65,6 +73,11 @@ function CodeDiffs.get_code(code_type::Val, kwc::(typeof(Core.kwcall)), types::T
         ctx = KernelAbstractions.mkcontext(kernel_instance, block, ndrange, iterspace, dynamic)
     else
         ctx = KernelAbstractions.mkcontext(kernel_instance, ndrange, iterspace)
+    end
+
+    if !isnothing(kernel_instance)
+        backend_kwargs = CodeDiffs.extract_ka_backend_kwargs(kernel_instance)
+        kwargs = merge(backend_kwargs, kwargs)  # always prioritize the users' kwargs
     end
 
     # Consume the kwargs specfic to KernelAbstractions

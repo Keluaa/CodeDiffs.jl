@@ -17,6 +17,9 @@ function method_instance(f, types::Type{<:Tuple}, world=Base.get_world_counter()
 end
 
 
+function extract_ka_backend_kwargs end
+
+
 function code_native(f, types::Type{<:Tuple}, ::Nothing; kwargs...)
     @nospecialize(f, types)
     io_buf = IOBuffer()
