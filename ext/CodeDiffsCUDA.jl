@@ -3,10 +3,23 @@ module CodeDiffsCUDA
 using CodeDiffs
 using CUDA
 import CUDA: GPUCompiler
+import KernelAbstractions as KA
 
 gpu_compiler_kwargs() = CUDA.COMPILER_KWARGS
 
 include("gpu_common.jl")
+
+
+function CodeDiffs.extract_ka_backend_kwargs(kernel::KA.Kernel{CUDABackend})
+    # Those two parameters are passed to the `@cuda` kernel constructor in `CUDA.CUDAKernels`
+    backend = KA.backend(kernel)
+    if KA.workgroupsize(kernel) <: KA.StaticSize
+        workgroupsize = prod(KA.get(KA.workgroupsize(kernel)))
+    else
+        workgroupsize = nothing
+    end
+    return (; always_inline=backend.always_inline, maxthreads=workgroupsize)
+end
 
 
 function gpu_compiler_job(mi::Core.MethodInstance; kwargs...)
