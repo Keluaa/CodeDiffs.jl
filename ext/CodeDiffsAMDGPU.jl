@@ -33,11 +33,20 @@ CodeDiffs.get_code_dispatch(::Val{:rocm_native}, f, types; kwargs...) = code_gpu
 
 @specialize
 
-CodeDiffs.code_highlighter(::Val{:rocm_typed}) = CodeDiffs.code_highlighter(Val{:typed}())
-CodeDiffs.code_highlighter(::Val{:rocm_llvm})  = CodeDiffs.code_highlighter(Val{:llvm}())
-# no highlighting for GCN (unsupported by GPUCompiler.jl)
+CodeDiffs.code_highlighter(::Val{:rocm_typed})  = CodeDiffs.code_highlighter(Val{:typed}())
+CodeDiffs.code_highlighter(::Val{:rocm_llvm})   = (io, str) -> highlight_using_pygments(io, str, "llvm")
+CodeDiffs.code_highlighter(::Val{:gcn})         = (io, str) -> highlight_using_pygments(io, str, "gcn")
+CodeDiffs.code_highlighter(::Val{:rocm_native}) = CodeDiffs.code_highlighter(Val{:gcn}())
 
-CodeDiffs.cleanup_code(::Val{:rocm_llvm}, c) = CodeDiffs.replace_llvm_module_name(c)
+function highlight_using_pygments(io::IO, str::AbstractString, lexer)
+    if @static(pkgversion(GPUCompiler) < v"v1.2.0" && lexer == "gcn")
+        write(io, str)
+    else
+        GPUCompiler.highlight(io, str, lexer)
+    end
+end
+
+CodeDiffs.cleanup_code(::Val{:rocm_llvm}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
 
 CodeDiffs.cleanup_code(::Val{:gcn}, c) = CodeDiffs.cleanup_code(Val{:rocm_native}(), c)
 function CodeDiffs.cleanup_code(::Val{:rocm_native}, c)
