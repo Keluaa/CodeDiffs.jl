@@ -65,10 +65,10 @@ CodeDiffs.code_highlighter(::Val{:ptx})         = (io, str) -> highlight_using_p
 CodeDiffs.code_highlighter(::Val{:cuda_native}) = CodeDiffs.code_highlighter(Val{:ptx}())
 
 function highlight_using_pygments(io::IO, str::AbstractString, lexer)
-    if @static(Sys.iswindows() && lexer == "ptx")
-        write(io, str)  # Pygments doesn't work for ptx on Windows
+    if @static(pkgversion(GPUCompiler) < v"v1.2.0" && lexer == "ptx")
+        write(io, str)
     else
-        CUDA.GPUCompiler.highlight(io, str, lexer)
+        GPUCompiler.highlight(io, str, lexer)
     end
 end
 
