@@ -220,14 +220,22 @@ end
 
 
 """
-    cleanup_code(::Val{code_type}, code)
+    cleanup_code(::Val{code_type}, code, dbinfo=true, cleanup_opts=(;))
 
 Perform minor changes to `code` to improve readability and the quality of the differences.
+
+`dbinfo` is a superset of `debuginfo`. It is compatible with all code types, but it may
+have no effect.
+
+`cleanup_opts` are passed by the user, and have specific meaning depending on the `code_type`.
 
 Currently only [`replace_llvm_module_name`](@ref) is applied to `:native` and `:llvm` code.
 For GPU code much more cleanup is done.
 """
-cleanup_code(_, c) = c
+cleanup_code(type, code) = cleanup_code(type, code, true, (;))
+cleanup_code(type, code, dbinfo) = cleanup_code(type, code, dbinfo, (;))
 
-cleanup_code(::Val{:native}, c) = replace_llvm_module_name(c)
-cleanup_code(::Val{:llvm}, c) = replace_llvm_module_name(c)
+cleanup_code(_, c, _, _) = c
+
+cleanup_code(::Val{:native}, c, dbinfo, cleanup_opts) = replace_llvm_module_name(c)
+cleanup_code(::Val{:llvm}, c, dbinfo, cleanup_opts) = replace_llvm_module_name(c)
