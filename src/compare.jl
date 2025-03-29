@@ -91,7 +91,7 @@ function code_for_diff(
 end
 
 function code_for_diff(code, type::Val, color, dbinfo, cleanup, cleanup_opts)
-    code = cleanup ? cleanup_code(type, code) : code
+    code = cleanup ? cleanup_code(type, code, dbinfo, cleanup_opts) : code
 
     code_str = sprint(code_highlighter(type), code; context=(:color => false,))
     code_str = replace(code_str, ANSI_REGEX => "")  # Make sure there is no decorations
