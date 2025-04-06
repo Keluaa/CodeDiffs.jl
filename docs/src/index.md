@@ -23,7 +23,7 @@ Both support all code types.
 If possible, the code type will be detected automatically, otherwise add e.g.
 `type=:llvm` for LLVM IR comparison:
 
-```jldoctest f1_vs_f2; setup=:(using CodeDiffs)
+```julia
 julia> f1(a) = a + 1
 f1 (generic function with 1 method)
 
@@ -49,7 +49,7 @@ top:                                   ┃ top:
 Setting the environment variable `"CODE_DIFFS_LINE_NUMBERS"` to `true` will display line
 numbers on each side:
 
-```jldoctest f1_vs_f2
+```julia
 julia> ENV["CODE_DIFFS_LINE_NUMBERS"] = true
 true
 
