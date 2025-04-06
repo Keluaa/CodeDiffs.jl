@@ -580,26 +580,36 @@ end
 
     @testset "Inline LLVM-IR" begin
         tuple_gref = GlobalRef(Core, :tuple)
+        llvmcall_gref = GlobalRef(Base, :llvmcall)
         ir_list = Any[
             :($tuple_gref("""; ModuleID = 'llvmcall'\\n
             define void @entry() #0 {\\nentry:\\n    ret void\\n}
             """, "entry")),
-            :($tuple_gref("""; ModuleID = 'llvmcall'
+            :($llvmcall_gref($(Core.SSAValue(1)))),  # invalid `Base.llvmcall` but we don't care here
+
+            :($tuple_gref("""
             define void @entry() #0 {
             entry:
                 ret void
             }
             """, "entry")),
+            :(Base.llvmcall($(Core.SSAValue(3)))),
+
             :(Core.tuple("""; ModuleID = 'llvmcall'
             define void @entry() #0 {
             entry:
                 ret void
             }
             """, "entry")),
+            :($llvmcall_gref($(Core.SSAValue(5)))),
+
             :($tuple_gref("""; ModuleID = 'llvmcall'
             oops, no function defined here!
             """, "entry")),
+            :($llvmcall_gref($(Core.SSAValue(7)))),
+
             :($tuple_gref("this is not a LLVM module", "entry")),
+            :($llvmcall_gref($(Core.SSAValue(9)))),
         ]
         original_ir_list = deepcopy(ir_list)
 
@@ -607,8 +617,9 @@ end
         @test ir_list[1] isa CodeDiffs.LLVMCallBodyDef
         @test !occursin("\\n", ir_list[1].code)
         @test ir_list[1].entry == "entry"
-        @test ir_list[1] == ir_list[2] == ir_list[3]
-        @test ir_list[4:end] == original_ir_list[4:end]
+        @test ir_list[1] == ir_list[3] == ir_list[5]
+        @test count(x -> isa(x, CodeDiffs.LLVMCallBodyDef), ir_list) == count(CodeDiffs.is_llvmcall, ir_list) - 2
+        @test ir_list[end-4:end] == original_ir_list[end-4:end]
     end
 
     include("KernelAbstractions.jl")

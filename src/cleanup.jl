@@ -250,18 +250,27 @@ cleanup_inline_llvmcall_modules(c::Pair{Core.CodeInfo, DataType}) =
 cleanup_inline_llvmcall_modules(c::Core.CodeInfo) =
     (cleanup_inline_llvmcall_modules(c.code); c)
 
+is_llvmcall(_) = false
+is_llvmcall(e::Expr) = Base.isexpr(e, :call) && e.args[1] in (GlobalRef(Base, :llvmcall), :(Base.llvmcall))
+
 function cleanup_inline_llvmcall_modules(c::Vector{Any})
     # GPU packages tend to use inline LLVM calls, which can make the typed source hard to
     # read. This expands the source into a multiline string and strips extra LLVM IR info.
 
     llvmcall_body_regex = r"define[^{]+{[^}]+}"  # LLVM-IR function declaration regex
-    tuple_gref = GlobalRef(Core, :tuple)
-    for (i, expr) in enumerate(c)
+    for expr in c
+        # Expect `Base.llvmcall(<llvm IR code SSA ID>, ...)`
+        !is_llvmcall(expr) && continue
+        length(expr.args) < 2 && continue
+        !(expr.args[2] isa Core.SSAValue) && continue
+        code_pos = expr.args[2].id  # the SSAValue ID is the index of the LLVM code in `c`
+        !(code_pos in eachindex(c)) && continue
+
         # The source of a LLVM call is placed in a `Core.tuple(src, entry_point)` expression
-        !@capture(expr, f_(code_, entry_)) && continue
-        !(f == tuple_gref || f == :(Core.tuple)) && continue
+        code_expr = c[code_pos]
+        !@capture(code_expr, f_(code_, entry_)) && continue
+        !(f == GlobalRef(Core, :tuple) || f == :(Core.tuple)) && continue
         !(code isa String) && continue
-        !startswith(code, "; ModuleID = 'llvmcall'") && continue
 
         # Extract the function of the llvmcall body. We assume that there is only one.
         # This also means that we discard all annotations around the body.
@@ -272,14 +281,12 @@ function cleanup_inline_llvmcall_modules(c::Vector{Any})
         body = unescape_string(body.match)
         body = replace(body, "\n" => "\n" * indent)
 
-        cleaner_code = """
-        $indent; expanded llvmcall body
-        $indent$body"""
+        cleaner_code = "; stripped llvmcall body\n$indent$body"
 
         # Placing the modified body in the original `Expr` would be ugly, as the string
         # would be escaped, newlines included. For proper pretty printing, we must use a
         # custom object with `Base.show` set to not escape the string.
-        c[i] = LLVMCallBodyDef(cleaner_code, entry)
+        c[code_pos] = LLVMCallBodyDef(cleaner_code, entry)
     end
 end
 

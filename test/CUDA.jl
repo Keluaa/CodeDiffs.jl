@@ -113,20 +113,18 @@ end
 
     test_ka_k = test_ka(CUDA.CUDABackend(), 100, size(a))
 
-    is_llvmcall(_) = false
-    is_llvmcall(e::Expr) = Base.isexpr(e, :call) && e.args[1] == GlobalRef(Base, :llvmcall)
-
     ci = CodeDiffs.get_code(Val(:cuda_typed), test_ka_k, Base.typesof(a, b, c); debuginfo=:none)
     @test ci isa Pair{Core.CodeInfo, DataType}
-    @test count(is_llvmcall, first(ci).code) > 0
+    @test count(CodeDiffs.is_llvmcall, first(ci).code) > 0
 
     ir_no_color = @code_for io=String type=:cuda_typed dbinfo=false color=false test_ka_k(a, b, c)
     ir_color    = @code_for io=String type=:cuda_typed dbinfo=false color=true  test_ka_k(a, b, c)
 
-    @test occursin("; expanded llvmcall body", ir_no_color)
-    @test occursin("; expanded llvmcall body", ir_color)
+    @test occursin("; stripped llvmcall body", ir_no_color)
+    @test occursin("; stripped llvmcall body", ir_color)
     @test !occursin("; ModuleID = 'llvmcall'", ir_no_color)
     @test !occursin("; ModuleID = 'llvmcall'", ir_color)
+    @test count("; stripped llvmcall body", ir_no_color) == count("Base.llvmcall", ir_no_color)
 end
 
 end
