@@ -578,6 +578,39 @@ end
         @test m[1] == "_Z1fv"
     end
 
+    @testset "Inline LLVM-IR" begin
+        tuple_gref = GlobalRef(Core, :tuple)
+        ir_list = Any[
+            :($tuple_gref("""; ModuleID = 'llvmcall'\\n
+            define void @entry() #0 {\\nentry:\\n    ret void\\n}
+            """, "entry")),
+            :($tuple_gref("""; ModuleID = 'llvmcall'
+            define void @entry() #0 {
+            entry:
+                ret void
+            }
+            """, "entry")),
+            :(Core.tuple("""; ModuleID = 'llvmcall'
+            define void @entry() #0 {
+            entry:
+                ret void
+            }
+            """, "entry")),
+            :($tuple_gref("""; ModuleID = 'llvmcall'
+            oops, no function defined here!
+            """, "entry")),
+            :($tuple_gref("this is not a LLVM module", "entry")),
+        ]
+        original_ir_list = deepcopy(ir_list)
+
+        @test CodeDiffs.cleanup_inline_llvmcall_modules(ir_list) === nothing
+        @test ir_list[1] isa CodeDiffs.LLVMCallBodyDef
+        @test !occursin("\\n", ir_list[1].code)
+        @test ir_list[1].entry == "entry"
+        @test ir_list[1] == ir_list[2] == ir_list[3]
+        @test ir_list[4:end] == original_ir_list[4:end]
+    end
+
     include("KernelAbstractions.jl")
 
     CUDA.functional() && include("CUDA.jl")

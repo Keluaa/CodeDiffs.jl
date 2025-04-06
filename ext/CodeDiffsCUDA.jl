@@ -80,13 +80,24 @@ const PTX_FUNC_NAME_COMMENT_REGEX = r"// -- Begin function "m * CodeDiffs.MANGLE
 const SASS_FUNC_NAME_COMMENT_REGEX = r"//-{5,} .text."m * CodeDiffs.MANGLED_NAME_REGEX * r" -{5,}$"m
 
 
+function CodeDiffs.cleanup_code(::Val{:cuda_typed}, c, dbinfo, cleanup_opts)
+    if get(cleanup_opts, :expand_llvmcall, true)
+        c = CodeDiffs.cleanup_inline_llvmcall_modules(c)
+    end
+    return c
+end
+
+
 function CodeDiffs.cleanup_code(::Val{:cuda_llvm}, c, dbinfo, cleanup_opts)
     c = CodeDiffs.replace_llvm_module_name(c)
     c = CodeDiffs.clean_function_name(CodeDiffs.LLVM_IR_FUNC_NAME_MANGLED_REGEX, c)
     return c
 end
 
-CodeDiffs.cleanup_code(::Val{:cuda_native}, c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:ptx}(), c)
+
+CodeDiffs.cleanup_code(::Val{:cuda_native}, c, dbinfo, cleanup_opts) =
+    CodeDiffs.cleanup_code(Val{:ptx}(), c, dbinfo, cleanup_opts)
+
 function CodeDiffs.cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
     c = CodeDiffs.replace_llvm_module_name(c)
     c = CodeDiffs.clean_function_name(PTX_FUNC_NAME_COMMENT_REGEX, c)
