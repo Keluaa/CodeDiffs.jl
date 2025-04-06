@@ -1,6 +1,5 @@
 @testset "CUDA.jl" begin
 
-
 function test_cuda_code_type_diff(code_type, f₁, args₁, f₂, args₂; extra...)
     color = !(code_type in (:cuda_native, :ptx))
     unreliable_code = code_type in (:cuda_native, :ptx, :sass)
@@ -90,6 +89,44 @@ end
     daxmy_k = daxmy(CUDA.CUDABackend(), 1024, length(r))
 
     test_cuda_diff(daxpy_k, (r, a, x, y), daxmy_k, (r, a, x, y))
+end
+
+
+@testset "LLVM call cleanup" begin
+    @kernel function test_ka(a, b, c)
+        i = @index(Global, Linear)
+        s = @localmem eltype(a) 100
+        l = @private eltype(a) 3
+        s[i] = a[i]
+        @synchronize()
+        l[1] = mod1(i * 42, 100)
+        l[2] = mod1(i * 46, 100)
+        l[3] = mod1(abs(Int(c[i])) * 465, 100)
+        a[i] = b[i] * c[i] - s[mod1(i + 42, 100)]
+        b[i] = c[i] - a[i] + s[mod1(i + 27, 100)]
+        c[i] = b[i] * a[i] * s[mod1(i + 37, 100)]
+    end
+
+    a = CUDA.rand(Int64, 100)
+    b = CUDA.rand(Int64, 100)
+    c = CUDA.rand(Int64, 100)
+
+    test_ka_k = test_ka(CUDA.CUDABackend(), 100, size(a))
+
+    is_llvmcall(_) = false
+    is_llvmcall(e::Expr) = Base.isexpr(e, :call) && e.args[1] == GlobalRef(Base, :llvmcall)
+
+    ci = CodeDiffs.get_code(Val(:cuda_typed), test_ka_k, Base.typesof(a, b, c); debuginfo=:none)
+    @test ci isa Pair{Core.CodeInfo, DataType}
+    @test count(is_llvmcall, first(ci).code) > 0
+
+    ir_no_color = @code_for io=String type=:cuda_typed dbinfo=false color=false test_ka_k(a, b, c)
+    ir_color    = @code_for io=String type=:cuda_typed dbinfo=false color=true  test_ka_k(a, b, c)
+
+    @test occursin("; expanded llvmcall body", ir_no_color)
+    @test occursin("; expanded llvmcall body", ir_color)
+    @test !occursin("; ModuleID = 'llvmcall'", ir_no_color)
+    @test !occursin("; ModuleID = 'llvmcall'", ir_color)
 end
 
 end

@@ -98,6 +98,7 @@ demangle
 demangle_all
 mangled_base_name
 clean_function_name
+cleanup_inline_llvmcall_modules
 ```
 
 # Diff display

@@ -33,8 +33,15 @@ CodeDiffs.code_highlighter(::Val{:one_typed}) = CodeDiffs.code_highlighter(Val{:
 CodeDiffs.code_highlighter(::Val{:one_llvm})  = CodeDiffs.code_highlighter(Val{:llvm}())
 # no highlighting for SPIRV (unsupported by GPUCompiler.jl)
 
-CodeDiffs.cleanup_code(::Val{:one_llvm}, c) = CodeDiffs.replace_llvm_module_name(c)
-CodeDiffs.cleanup_code(::Val{:spirv}, c) = CodeDiffs.cleanup_code(Val{:one_native}(), c)
-CodeDiffs.cleanup_code(::Val{:one_native}, c) = CodeDiffs.replace_llvm_module_name(c)
+function CodeDiffs.cleanup_code(::Val{:one_typed}, c, dbinfo, cleanup_opts)
+    if get(cleanup_opts, :expand_llvmcall, true)
+        c = CodeDiffs.cleanup_inline_llvmcall_modules(c)
+    end
+    return c
+end
+
+CodeDiffs.cleanup_code(::Val{:one_llvm}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
+CodeDiffs.cleanup_code(::Val{:spirv}, c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:one_native}(), c, dbinfo, cleanup_opts)
+CodeDiffs.cleanup_code(::Val{:one_native}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
 
 end

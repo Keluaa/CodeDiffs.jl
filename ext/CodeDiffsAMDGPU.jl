@@ -46,10 +46,20 @@ function highlight_using_pygments(io::IO, str::AbstractString, lexer)
     end
 end
 
+
+function CodeDiffs.cleanup_code(::Val{:rocm_typed}, c, dbinfo, cleanup_opts)
+    if get(cleanup_opts, :expand_llvmcall, true)
+        c = CodeDiffs.cleanup_inline_llvmcall_modules(c)
+    end
+    return c
+end
+
 CodeDiffs.cleanup_code(::Val{:rocm_llvm}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
 
-CodeDiffs.cleanup_code(::Val{:gcn}, c) = CodeDiffs.cleanup_code(Val{:rocm_native}(), c)
-function CodeDiffs.cleanup_code(::Val{:rocm_native}, c)
+CodeDiffs.cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts) =
+    CodeDiffs.cleanup_code(Val{:rocm_native}(), c, dbinfo, cleanup_opts)
+
+function CodeDiffs.cleanup_code(::Val{:rocm_native}, c, dbinfo, cleanup_opts)
     c = CodeDiffs.replace_llvm_module_name(c)
     # Remove the hundreds of '.ident "clang version ..."' lines
     c = replace(c, r"\t\.ident\t.+\n" => "")
