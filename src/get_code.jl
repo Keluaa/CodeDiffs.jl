@@ -54,11 +54,18 @@ function code_native(
     # See `InteractiveUtils._dump_function`
     @static if VERSION < v"1.10"
         f_str = InteractiveUtils._dump_function_linfo_native(mi, world, false, syntax, debuginfo, binary)
-    else
+    elseif VERSION < v"1.12"
         if dump_module
             f_str = InteractiveUtils._dump_function_native_assembly(mi, world, false, syntax, debuginfo, binary, raw, params)
         else
             f_str = InteractiveUtils._dump_function_native_disassembly(mi, world, false, syntax, debuginfo, binary)
+        end
+    else
+        src = Base.Compiler.typeinf_code(Base.Compiler.NativeInterpreter(world), mi, true)
+        if dump_module
+            f_str = InteractiveUtils._dump_function_native_assembly(mi, src, world, false, syntax, debuginfo, binary, raw, params)
+        else
+            f_str = InteractiveUtils._dump_function_native_disassembly(mi, src, world, false, syntax, debuginfo, binary)
         end
     end
 
@@ -113,9 +120,14 @@ function code_llvm(
         f_str = InteractiveUtils._dump_function_linfo_llvm(
             mi, world, false, !raw, dump_module, optimize, debuginfo, params
         )
-    else
+    elseif VERSION < v"1.12"
         f_str = InteractiveUtils._dump_function_llvm(
             mi, world, false, !raw, dump_module, optimize, debuginfo, params
+        )
+    else
+        src = Base.Compiler.typeinf_code(Base.Compiler.NativeInterpreter(world), mi, true)
+        f_str = InteractiveUtils._dump_function_llvm(
+            mi, src, world, false, !raw, dump_module, optimize, debuginfo, params
         )
     end
 
