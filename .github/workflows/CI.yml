@@ -32,6 +32,11 @@ jobs:
           - x64
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5 
+        with:
+          python-version: '3.13'
+      - run: # For syntax highlighting of PTX and GCN
+          pip install pygments
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}

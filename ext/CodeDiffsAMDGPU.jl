@@ -39,7 +39,7 @@ CodeDiffs.code_highlighter(::Val{:gcn})         = (io, str) -> highlight_using_p
 CodeDiffs.code_highlighter(::Val{:rocm_native}) = CodeDiffs.code_highlighter(Val{:gcn}())
 
 function highlight_using_pygments(io::IO, str::AbstractString, lexer)
-    if @static(pkgversion(GPUCompiler) < v"v1.2.0" && lexer == "gcn")
+    if @static(pkgversion(GPUCompiler) < v"1.2.0" && lexer == "gcn")
         write(io, str)
     else
         GPUCompiler.highlight(io, str, lexer)
