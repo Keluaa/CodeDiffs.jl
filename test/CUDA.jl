@@ -1,7 +1,10 @@
 @testset "CUDA.jl" begin
 
+PTX_HIGHLIGHTING_OK = pkgversion(CUDA.GPUCompiler) ≥ v"1.2.0"
+
+
 function test_cuda_code_type_diff(code_type, f₁, args₁, f₂, args₂; extra...)
-    color = !(code_type in (:cuda_native, :ptx))
+    color = PTX_HIGHLIGHTING_OK || !(code_type in (:cuda_native, :ptx))
     unreliable_code = code_type in (:cuda_native, :ptx, :sass)
 
     diff = @code_diff type=code_type color extra_1=extra extra_2=extra f₁(args₁...) f₁(args₁...)
