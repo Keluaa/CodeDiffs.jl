@@ -102,8 +102,11 @@ function CodeDiffs.cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
     c = CodeDiffs.replace_llvm_module_name(c)
     c = CodeDiffs.clean_function_name(PTX_FUNC_NAME_COMMENT_REGEX, c)
     c = cleanup_external_functions(c)
-    if !get(cleanup_opts, :demangle, true)
+    if get(cleanup_opts, :demangle, true)
         c = CodeDiffs.demangle_all(c)  # Demangle only names which aren't the function's name
+    end
+    if get(cleanup_opts, :indent_calls, true)
+        c = indent_ptx_function_calls(c)
     end
     return replace(c,
         # Remove the 3 extra header lines
@@ -112,10 +115,13 @@ function CodeDiffs.cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
         r" // callseq .+$"m => "",
         # Remove 'inline asm' comments (remove the newline as well)
         r"^\s+// (begin|end) inline asm\R"m => "",
+        # Remove the "end function" comment
+        r"\s+// -- End function\n" => "",
         # Remove empty lines
         r"\n{2,}" => "\n",
     )
 end
+
 
 function CodeDiffs.cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
     # SASS problems:
@@ -125,7 +131,7 @@ function CodeDiffs.cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
     # in different numbers (max of what I could see is 1, but still surprising).
     c = CodeDiffs.replace_llvm_module_name(c)
     c = CodeDiffs.clean_function_name(SASS_FUNC_NAME_COMMENT_REGEX, c)
-    if !get(cleanup_opts, :demangle, true)
+    if get(cleanup_opts, :demangle, true)
         c = CodeDiffs.demangle_all(c)  # Demangle only names which aren't the function's name
     end
     if !dbinfo
@@ -179,6 +185,26 @@ function cleanup_external_functions(c)
 
     # Parse the code again but this time replace the external functions with the sorted ones
     return replace(c, re_extern_func_def => next_func_def)
+end
+
+
+function indent_ptx_function_calls(c)
+    # Matches `call func, (param_1, param_2...);`
+    # Groups:
+    #  - 1: call instruction options
+    #  - 2: `func`
+    #  - 3: parameters list
+    ptx_call_regex = r"call(.*)\s+(.+),\s+\(([^;]+)\n\s+\);"
+
+    function indent_call_params(call_inst)
+        m = match(ptx_call_regex, call_inst)
+        isnothing(m) && return call_inst
+        indent = " "^8
+        params = replace(m[3], "\n" => "\n" * indent)
+        return "call" * m[1] * m[2] * ", (" * params * "\n" * indent * ");"
+    end
+
+    return replace(c, ptx_call_regex => indent_call_params)
 end
 
 end
