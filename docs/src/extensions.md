@@ -41,6 +41,51 @@ CUDA has one additional layer of assembly code, SASS, available with `:sass`.
     Note that behind the scenes, `GPUCompiler.jl` only cares about the most recent methods.
     Hence the `world` keyword is unsupported for all GPU backends, as we cannot compile back in time.
 
+### GPU kernel statistics
+
+With the `:cuda_stats` code type, you can get an overview of your CUDA kernel through statistics
+inferred from its PTX and SASS code:
+```julia
+julia> @code_for type=:cuda_stats some_kernel(a, b, c)
+Kernel memory stats (static allocations):
+ - Global    134 bytes
+ - Constant  0 bytes
+ - Shared    112 bytes
+ - Local     864 bytes
+
+SASS source stats:
+ - Target SM         80
+ - Registers usage   64
+ - Instructions      6376
+ - Workgroup sync    63
+ - Warp sync         8
+ - Function calls    51
+
+PTX variable declarations:
+ - Global:
+   - b8    134
+ - Shared:
+   - b8    112
+ - Local:
+   - b8    864
+ - Registers:
+   - b16   276
+   - b32   106
+   - b64   2502
+   - f64   214
+   - pred  257
+```
+
+Note that dynamic allocation of shared memory is ignored for now.
+Vector variables account for 2, 4 or 8 variables of the base type.
+
+!!! info
+
+    PTX uses virtual registers, therefore the compiler can declare 1000s of register variables, yet
+    it is only in the SASS code that registers are allocated physically.
+    In the example above, more than 22 KiB of registers are declared, yet the SASS output uses a
+    maximum of 64 registers (and 864 bytes of local memory) per thread.
+
 # Defining a new extension
 
 Defining a new `code_type` involves four functions:
