@@ -245,7 +245,7 @@ using an unescaped string, allowing to display the IR over multiple lines, with 
 
 Only the LLVM function declaration is kept, other code (annotations, etc...) are stripped.
 """
-cleanup_inline_llvmcall_modules(c::Pair{Core.CodeInfo, DataType}) =
+cleanup_inline_llvmcall_modules(c::Pair{Core.CodeInfo, <:Any}) =
     (cleanup_inline_llvmcall_modules(first(c)); c)
 cleanup_inline_llvmcall_modules(c::Core.CodeInfo) =
     (cleanup_inline_llvmcall_modules(c.code); c)
