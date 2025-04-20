@@ -582,9 +582,7 @@ end
         tuple_gref = GlobalRef(Core, :tuple)
         llvmcall_gref = GlobalRef(Base, :llvmcall)
         ir_list = Any[
-            :($tuple_gref("""; ModuleID = 'llvmcall'\\n
-            define void @entry() #0 {\\nentry:\\n    ret void\\n}
-            """, "entry")),
+            :($tuple_gref("; ModuleID = 'llvmcall'\ndefine void @entry() #0 {\nentry:\n    ret void\n}", "entry")),
             :($llvmcall_gref($(Core.SSAValue(1)))),  # invalid `Base.llvmcall` but we don't care here
 
             :($tuple_gref("""
@@ -610,8 +608,30 @@ end
 
             :($tuple_gref("this is not a LLVM module", "entry")),
             :($llvmcall_gref($(Core.SSAValue(9)))),
+
+            # Complex real-world example with multiple nested '{}'
+            # Replicate similar code by accessing an array of tuples (or structs) in a GPU kernel
+            :($tuple_gref("""
+            ; ModuleID = 'llvmcall'
+            source_filename = "llvmcall"
+
+            ; Function Attrs: alwaysinline
+            define void @entry(i8 addrspace(1)* %0, { i64, i64, [2 x i64] } %1, i64 %2) #0 {
+            entry:
+                %3 = bitcast i8 addrspace(1)* %0 to { i64, i64, [2 x i64] } addrspace(1)*
+                %4 = getelementptr inbounds { i64, i64, [2 x i64] }, { i64, i64, [2 x i64] } addrspace(1)* %3, i64 %2
+                store { i64, i64, [2 x i64] } %1, { i64, i64, [2 x i64] } addrspace(1)* %4, align 8, !tbaa !0
+                ret void
+            }
+
+            attributes #0 = { alwaysinline }
+
+            !0 = !{!1, !1, i64 0, i64 0}
+            !1 = !{!"custom_tbaa_addrspace(1)", !2, i64 0}
+            !2 = !{!"custom_tbaa"}
+            """, "entry")),
+            :(Base.llvmcall($(Core.SSAValue(11)))),
         ]
-        original_ir_list = deepcopy(ir_list)
 
         @test CodeDiffs.cleanup_inline_llvmcall_modules(ir_list) === nothing
         @test ir_list[1] isa CodeDiffs.LLVMCallBodyDef
@@ -619,7 +639,11 @@ end
         @test ir_list[1].entry == "entry"
         @test ir_list[1] == ir_list[3] == ir_list[5]
         @test count(x -> isa(x, CodeDiffs.LLVMCallBodyDef), ir_list) == count(CodeDiffs.is_llvmcall, ir_list) - 2
-        @test ir_list[end-4:end] == original_ir_list[end-4:end]
+        @test all(typeof.(ir_list[7:10]) .== Expr)  # unmatched llvmcalls are unchanged
+
+        @test ir_list[11] isa CodeDiffs.LLVMCallBodyDef
+        @test occursin("void @entry", ir_list[11].code) && occursin("ret void", ir_list[11].code)  # the whole body should be extracted
+        @test !occursin("alwaysinline", ir_list[11].code)  # leading and trailing attributes should be excluded
     end
 
     include("KernelAbstractions.jl")
