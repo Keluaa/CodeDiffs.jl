@@ -257,7 +257,9 @@ function cleanup_inline_llvmcall_modules(c::Vector{Any})
     # GPU packages tend to use inline LLVM calls, which can make the typed source hard to
     # read. This expands the source into a multiline string and strips extra LLVM IR info.
 
-    llvmcall_body_regex = r"define[^{]+{[^}]+}"  # LLVM-IR function declaration regex
+    # LLVM-IR function declaration regex. We rely on the fact that the beginning of the
+    # body starts with a "{\n" and ends with "\n}\n".
+    llvmcall_body_regex = r"define.+?{\n.+?\n}(?=\n|$)"s
     for expr in c
         # Expect `Base.llvmcall(<llvm IR code SSA ID>, ...)`
         !is_llvmcall(expr) && continue
@@ -275,7 +277,7 @@ function cleanup_inline_llvmcall_modules(c::Vector{Any})
         # Extract the function of the llvmcall body. We assume that there is only one.
         # This also means that we discard all annotations around the body.
         body = match(llvmcall_body_regex, code)
-        isnothing(body) && return nothing
+        isnothing(body) && continue
 
         indent = "  "
         body = unescape_string(body.match)
