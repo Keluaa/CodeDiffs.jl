@@ -23,6 +23,7 @@ CodeDiffs.argconvert(::Val{:rocm_typed},  arg) = AMDGPU.rocconvert(arg)
 CodeDiffs.argconvert(::Val{:rocm_llvm},   arg) = AMDGPU.rocconvert(arg)
 CodeDiffs.argconvert(::Val{:gcn},         arg) = AMDGPU.rocconvert(arg)
 CodeDiffs.argconvert(::Val{:rocm_native}, arg) = AMDGPU.rocconvert(arg)
+CodeDiffs.argconvert(::Val{:rocm_stats},  arg) = AMDGPU.rocconvert(arg)
 
 @nospecialize
 
@@ -30,6 +31,11 @@ CodeDiffs.get_code_dispatch(::Val{:rocm_typed},  f, types; kwargs...) = code_gpu
 CodeDiffs.get_code_dispatch(::Val{:rocm_llvm},   f, types; kwargs...) = code_gpu_llvm(f, types; kwargs...)
 CodeDiffs.get_code_dispatch(::Val{:gcn},         f, types; kwargs...) = CodeDiffs.get_code_dispatch(Val{:rocm_native}(), f, types; kwargs...)
 CodeDiffs.get_code_dispatch(::Val{:rocm_native}, f, types; kwargs...) = code_gpu_native(f, types; kwargs...)
+
+function CodeDiffs.get_code_dispatch(::Val{:rocm_stats}, f, types; stats_opts=(;), kwargs...)
+    gcn_source = CodeDiffs.get_code_dispatch(Val(:gcn), f, types; kwargs...)
+    return CodeDiffs.extract_stats(Val(:gcn), gcn_source, stats_opts)
+end
 
 @specialize
 

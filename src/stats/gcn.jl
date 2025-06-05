@@ -1,0 +1,248 @@
+
+struct GCNStats
+    # Register and control flow stats
+    scalar_registers :: Int
+    vector_registers :: Int
+    accu_registers   :: Int
+    sgpr_spill_count :: Int
+    vgpr_spill_count :: Int
+    uses_dyn_stack   :: Bool
+
+    # Arguments
+    arguments_count :: Int
+    arguments_size  :: Int  # in bytes
+
+    # Target properties
+    target_triple  :: String
+    ISA            :: String
+    architecture   :: String
+    arch_version   :: VersionNumber
+    wavefront_size :: Int
+
+    # Instructions stats
+    inst_count        :: Int
+    scalar_inst_count :: Int
+    vector_inst_count :: Int
+    dyn_branch_count  :: Int
+    barrier_count     :: Int
+    sync_count        :: Int
+end
+
+
+function extract_stats(::Val{:gcn}, gcn_source, stats_opts)
+    _, gcn_target, kernel_metadata = extract_gcn_yaml_metadata(gcn_source)
+
+    sgpr_count = get(kernel_metadata, ".sgpr_count", 0)
+    vgpr_count = get(kernel_metadata, ".vgpr_count", 0)
+    agpr_count = get(kernel_metadata, ".agpr_count", 0)
+    sgpr_spills = get(kernel_metadata, ".sgpr_spill_count", 0)
+    vgpr_spills = get(kernel_metadata, ".vgpr_spill_count", 0)
+
+    arguments_count = length(get(kernel_metadata, ".args", []))
+    arguments_size = get(kernel_metadata, ".kernarg_segment_size", 0)
+
+    uses_dyn_stack = get(kernel_metadata, ".uses_dynamic_stack", false)
+    wavefront_size = get(kernel_metadata, ".wavefront_size", 64)
+
+    target = parse_amdgpu_target(gcn_target)
+    arch, arch_version = amdgpu_processor_to_architecture(target.processor)
+
+    code = extract_gcn_code_stats(gcn_source; arch, arch_version)
+
+    return GCNStats(
+        sgpr_count, vgpr_count, agpr_count, sgpr_spills, vgpr_spills, uses_dyn_stack,
+        arguments_count, arguments_size,
+        join((target.arch, target.vendor, target.os), '-'), target.processor,
+        string(arch), arch_version, wavefront_size,
+        code.inst_count, code.scalar_inst_count, code.vector_inst_count,
+        code.dyn_branch_count, code.barrier_count, code.sync_count,
+    )
+end
+
+
+parse_match_group(::Nothing, group, default) = default
+parse_match_group(m::RegexMatch, group, default::String) = @something m[group] default
+function parse_match_group(m::RegexMatch, group, default::T) where {T}
+    isnothing(m[group]) && return default
+    return @something tryparse(T, m[group]) default
+end
+
+
+function parse_amdgpu_target(target_triple)
+    # Docs: https://llvm.org/docs/AMDGPUUsage.html#target-triples
+    # It is made of a "<target triple>-<processor>", with 4 '-' in total.
+    # Example: "amdgcn-amd-amdhsa--gfx90a:sramecc+"
+    target_fields = split(target_triple, '-'; limit=5)
+    if length(target_fields) != 5
+        return nothing
+    end
+
+    arch, vendor, os, env, processor_and_features = target_fields
+    processor, features = split(processor_and_features, ':')
+
+    return (; arch, vendor, os, env, processor, features)
+end
+
+
+function amdgpu_processor_to_architecture(processor)
+    processor === nothing && return :unknown, v"0"
+
+    # Deduce the architecture from the processor, and return `(arch, version)`.
+    # See this table: https://llvm.org/docs/AMDGPUUsage.html#amdgpu-processor-table
+
+    # Parse the processor target. The major version is the only one with multiple digits.
+    # Use '\w' instead of '\d' as there may be hexadecimal digits.
+    amdgpu_processor_regex = r"gfx(?<major>\w+)(?:(?<minor>\w)(?<patch>\w)|(?:-(?<generic_minor>\w))?-(?<generic>generic))"
+    m = match(amdgpu_processor_regex, processor)
+    isnothing(m) && return :unknown, v"0"
+
+    is_generic = !isnothing(m[:generic])
+    major = @something tryparse(Int, m[:major]; base=16) 0
+    if is_generic
+        if isnothing(m[:generic_minor])
+            minor = 0
+        else
+            minor = @something tryparse(Int, m[:generic_minor]; base=16) 0
+        end
+        patch = 0
+    else
+        minor = @something tryparse(Int, m[:minor]; base=16) 0
+        patch = @something tryparse(Int, m[:patch]; base=16) 0
+    end
+
+    # Since we parse all numbers as hexadecimal, we must use only hex numbers for matching.
+    # See this table: https://llvm.org/docs/AMDGPUUsage.html#instructions
+    if major == 0x6
+        return :GCN, v"1"
+    elseif major == 0x7
+        return :GCN, v"2"
+    elseif major == 0x8
+        return :GCN, v"3"
+    elseif major == 0x9
+        if     minor == 0x0 && patch == 0x8 return :CDNA, v"1"  # gfx908 (MI100)
+        elseif minor == 0x0 && patch == 0xa return :CDNA, v"2"  # gfx90a (MI250, MI250X)
+        elseif minor == 0x4                 return :CDNA, v"3"  # gfx942 (MI300A, MI300X, MI325X)
+        elseif minor == 0x5                 return :CDNA, v"3"  # gfx950 (MI350X)
+        elseif minor == 0x0                 return :GCN,  v"5"  # gfx900 to gfx90c, or gfx9-generic
+        end
+    elseif major == 0x10
+        if     minor == 0x1  return :RDNA, v"1"  # gfx1010 to gfx1013
+        elseif minor == 0x3  return :RDNA, v"2"  # gfx1030 to gfx1036, or gfx10-3-generic
+        end
+    elseif major == 0x11
+        if     minor == 0x0  return :RDNA, v"3"    # gfx1100 to gfx1103, or gfx11-generic
+        elseif minor == 0x5  return :RDNA, v"3.5"  # gfx1150 to gfx1153
+        end
+    elseif major == 0x12
+        if     minor == 0x0  return :RDNA, v"4"  # gfx1200 to gfx1201
+        end
+    end
+
+    return :unknown, v"0"
+end
+
+
+function extract_gcn_code_stats(gcn_source; arch=:unknown, arch_version=v"0")
+    # Limit our search to the first ".text" section. There can be multiple ".text" sections in the
+    # output, but we assume that only the first one contains instructions.
+    source_start = findfirst(r"^\s*\.text\b"m, gcn_source)
+    isnothing(source_start) && return nothing
+    source_end = findnext(r"^\s*\.section\b"m, gcn_source, last(source_start))
+    isnothing(source_end) && return nothing
+    gcn_source = @view gcn_source[last(source_start):first(source_end)]
+
+    # Should match all GCN, CDNA or RDNA instructions. The "name" is the instruction name while
+    # "args" are all characters after it.
+    gcn_inst_regex = r"^\s*\b(?<name>\w+)\b(?<args>.+)?(?:;|$)"m
+
+    inst_count        = 0    
+    scalar_inst_count = 0
+    vector_inst_count = 0
+    dyn_branch_count  = 0
+    barrier_count     = 0
+    sync_count        = 0
+    for inst in eachmatch(gcn_inst_regex, gcn_source)
+        inst_count += 1
+        mnemonic = lowercase(inst[1])
+
+        if startswith(mnemonic, "s_")
+            scalar_inst_count += 1
+
+            # Should be present in all recent architectures
+            barrier_count     += mnemonic == "s_barrier"
+            sync_count        += mnemonic == "s_waitcnt"
+
+            # Only present in CDNA.
+            # Those instructions are emitted when the branching pattern is too complex. They
+            # require using additional SGPRs to keep track of the "branch stack".
+            dyn_branch_count += mnemonic in ("s_cbranch_join", "s_cbranch_g_fork", "s_cbranch_i_fork")
+
+        elseif startswith(mnemonic, "v_")
+            vector_inst_count += 1
+        end
+    end
+
+    return (;
+        inst_count, scalar_inst_count, vector_inst_count,
+        dyn_branch_count, barrier_count, sync_count,
+    )
+end
+
+
+function extract_gcn_yaml_metadata(gcn_source)
+    # As per the LLVM docs, this section is in YAML.
+    # https://llvm.org/docs/AMDGPUUsage.html#id112
+
+    # The format is the v3/v5 code object metadata:
+    # https://llvm.org/docs/AMDGPUUsage.html#code-object-v3-metadata
+    # https://llvm.org/docs/AMDGPUUsage.html#code-object-v5-metadata
+
+    metadata_start_regex = r"^\s*\.amdgpu_metadata"m
+    metadata_start = findfirst(metadata_start_regex, gcn_source)
+
+    metadata_end_regex = r"^\s*\.end_amdgpu_metadata"m
+    metadata_end = findnext(metadata_end_regex, gcn_source, last(metadata_start))
+
+    if isnothing(metadata_start) || isnothing(metadata_end)
+        return v"0", "", Dict()
+    end
+
+    raw_yaml_metadata = @view gcn_source[last(metadata_start)+1:first(metadata_end)-1]
+    yaml_metadata = YAML.load(raw_yaml_metadata)
+
+    metadata_version = VersionNumber(yaml_metadata["amdhsa.version"]...)
+    target = yaml_metadata["amdhsa.target"]
+
+    # Suppose that there is only one kernel in the source, which is what we expect with AMDGPU.jl
+    kernel_metadata = only(yaml_metadata["amdhsa.kernels"])
+
+    return metadata_version, target, kernel_metadata
+end
+
+
+function Base.show(io::IO, stats::GCNStats)
+    println(io, "Kernel memory stats:")
+    println(io, " - Arguments count          ", stats.arguments_count)
+    println(io, " - Arguments size           ", Base.format_bytes(stats.arguments_size))
+    println(io)
+    println(io, "Kernel registers stats:")
+    println(io, " - Scalar registers (SGPR)  ", stats.scalar_registers, " (", stats.sgpr_spill_count, " spilled)")
+    println(io, " - Vector registers (VGPR)  ", stats.vector_registers, " (", stats.vgpr_spill_count, " spilled)")
+    println(io, " - Accum. registers (AGPR)  ", stats.accu_registers)
+    println(io, " - Uses dynamic stack       ", stats.uses_dyn_stack)
+    println(io)
+    println(io, "Kernel target:")
+    println(io, " - Target                   ", stats.target_triple)
+    println(io, " - ISA                      ", stats.ISA)
+    println(io, " - Architecture             ", stats.architecture, " ", stats.arch_version.major)
+    println(io, " - Wavefront size           ", stats.wavefront_size)
+    println(io)
+    println(io, "Instructions stats:")
+    println(io, " - Instructions             ", stats.inst_count)
+    println(io, " - Scalar instructions      ", stats.scalar_inst_count)
+    println(io, " - Vector instructions      ", stats.vector_inst_count)
+    println(io, " - Complex branches insts.  ", stats.dyn_branch_count)
+    println(io, " - Wavefront memory sync.   ", stats.sync_count)
+      print(io, " - Workgroup barriers       ", stats.barrier_count)
+    return
+end

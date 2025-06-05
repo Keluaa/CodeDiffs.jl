@@ -116,6 +116,7 @@ end
     end
 
     include("cleanup.jl")
+    include("stats.jl")
 
     @testset "AST" begin
         diff = CodeDiffs.code_diff((:(1+2),), (:(1+2),); type=:ast, color=false, prettify=false, lines=false, alias=false)
