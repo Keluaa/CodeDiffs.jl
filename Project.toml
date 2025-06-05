@@ -29,7 +29,7 @@ CodeDiffsMetal = "Metal"
 CodeDiffsOneAPI = "oneAPI"
 
 [compat]
-AMDGPU = "0.9"
+AMDGPU = "1"
 Aqua = "0.7"
 CUDA = "4, 5"
 CodeTracking = "1"
