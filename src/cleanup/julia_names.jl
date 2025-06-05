@@ -115,31 +115,37 @@ julia> replace_llvm_module_name(code₁) == replace_llvm_module_name(code₂)  #
 true
 ```
 """
-function replace_llvm_module_name(code::AbstractString)
+replace_llvm_module_name(code::AbstractString) = replace(code, llvm_module_name_patterns()...)
+replace_llvm_module_name(code, function_name) = replace(code, llvm_module_name_patterns(function_name)...)
+
+
+function llvm_module_name_patterns()
     @static if VERSION ≥ v"1.11-"
-        return replace(code,
+        return (
             function_unique_gen_name_regex() => s"\1\2",
-            global_var_unique_gen_name_regex() => s"\1.jit"  # get rid of the '#<gen_num>' part
+            global_var_unique_gen_name_regex() => s"\1.jit",  # get rid of the '#<gen_num>' part
         )
     else
-        return replace(code, function_unique_gen_name_regex() => s"\1\2")
+        return (function_unique_gen_name_regex() => s"\1\2",)
     end
 end
 
 
-"""
-    replace_llvm_module_name(code::AbstractString, function_name)
-
-Replace only LLVM module names for `function_name`.
-"""
-function replace_llvm_module_name(code::AbstractString, function_name)
+function llvm_module_name_patterns(function_name)
     function_name = string(function_name)
     if Sys.islinux() && startswith(function_name, '@')
         # See 'get_function_name' in 'julia/src/codegen.cpp'
         function_name = function_name[2:end]
     end
-    func_re = function_unique_gen_name_regex(function_name)
-    return replace(code, func_re => function_name)
+
+    @static if VERSION ≥ v"1.11-"
+        return (
+            function_unique_gen_name_regex(function_name) => function_name,
+            global_var_unique_gen_name_regex(function_name) => function_name * ".jit",  # get rid of the '#<gen_num>' part
+        )
+    else
+        return (function_unique_gen_name_regex(function_name) => function_name,)
+    end
 end
 
 
@@ -190,7 +196,8 @@ const LLVM_IR_FUNC_NAME_MANGLED_REGEX = r"define\s[^@]*@"m * MANGLED_NAME_REGEX
 
 Find and replace all mangled names in `code` with their demangled counterparts.
 """
-demangle_all(code::AbstractString) = replace(code, MANGLED_NAME_REGEX => demangle)
+demangle_all() = MANGLED_NAME_REGEX => demangle
+demangle_all(code::AbstractString) = replace(code, demangle_all())
 
 
 """
@@ -216,107 +223,4 @@ function clean_function_name(name_regex, c, replacement=nothing)
     end
 
     return replace(c, mangled_name => replacement)
-end
-
-
-struct LLVMCallBodyDef
-    code  :: String
-    entry :: String
-end
-
-
-function Base.show(io::IO, llvmcall::LLVMCallBodyDef)
-    print(io, "Core.tuple(\"\"\"")
-    if get(io, :color, false)
-        code_highlighter(Val(:llvm))(io, llvmcall.code)
-    else
-        println(io, llvmcall.code)
-    end
-    print(io, "  \"\"\", \"", llvmcall.entry, "\")")
-end
-
-
-"""
-    cleanup_inline_llvmcall_modules(c::Core.CodeInfo)
-    cleanup_inline_llvmcall_modules(c::Vector{Any})
-
-Replace the LLVM-IR body of `Base.llvmcall` expressions in `c` to something more readable
-using an unescaped string, allowing to display the IR over multiple lines, with highlighting.
-
-Only the LLVM function declaration is kept, other code (annotations, etc...) are stripped.
-"""
-cleanup_inline_llvmcall_modules(c::Pair{Core.CodeInfo, <:Any}) =
-    (cleanup_inline_llvmcall_modules(first(c)); c)
-cleanup_inline_llvmcall_modules(c::Core.CodeInfo) =
-    (cleanup_inline_llvmcall_modules(c.code); c)
-
-is_llvmcall(_) = false
-is_llvmcall(e::Expr) = Base.isexpr(e, :call) && e.args[1] in (GlobalRef(Base, :llvmcall), :(Base.llvmcall))
-
-function cleanup_inline_llvmcall_modules(c::Vector{Any})
-    # GPU packages tend to use inline LLVM calls, which can make the typed source hard to
-    # read. This expands the source into a multiline string and strips extra LLVM IR info.
-
-    # LLVM-IR function declaration regex. We rely on the fact that the beginning of the
-    # body starts with a "{\n" and ends with "\n}\n".
-    llvmcall_body_regex = r"define.+?{\n.+?\n}(?=\n|$)"s
-    for expr in c
-        # Expect `Base.llvmcall(<llvm IR code SSA ID>, ...)`
-        !is_llvmcall(expr) && continue
-        length(expr.args) < 2 && continue
-        !(expr.args[2] isa Core.SSAValue) && continue
-        code_pos = expr.args[2].id  # the SSAValue ID is the index of the LLVM code in `c`
-        !(code_pos in eachindex(c)) && continue
-
-        # The source of a LLVM call is placed in a `Core.tuple(src, entry_point)` expression
-        code_expr = c[code_pos]
-        !@capture(code_expr, f_(code_, entry_)) && continue
-        !(f == GlobalRef(Core, :tuple) || f == :(Core.tuple)) && continue
-        !(code isa String) && continue
-
-        # Extract the function of the llvmcall body. We assume that there is only one.
-        # This also means that we discard all annotations around the body.
-        body = match(llvmcall_body_regex, code)
-        isnothing(body) && continue
-
-        indent = "  "
-        body = unescape_string(body.match)
-        body = replace(body, "\n" => "\n" * indent)
-
-        cleaner_code = "; stripped llvmcall body\n$indent$body"
-
-        # Placing the modified body in the original `Expr` would be ugly, as the string
-        # would be escaped, newlines included. For proper pretty printing, we must use a
-        # custom object with `Base.show` set to not escape the string.
-        c[code_pos] = LLVMCallBodyDef(cleaner_code, entry)
-    end
-end
-
-
-"""
-    cleanup_code(::Val{code_type}, code, dbinfo=true, cleanup_opts=(;))
-
-Perform minor changes to `code` to improve readability and the quality of the differences.
-
-`dbinfo` is a superset of `debuginfo`. It is compatible with all code types, but it may
-have no effect.
-
-`cleanup_opts` are passed by the user, and have specific meaning depending on the `code_type`.
-
-Currently only [`replace_llvm_module_name`](@ref) is applied to `:native` and `:llvm` code.
-For GPU code much more cleanup is done.
-"""
-cleanup_code(type, code) = cleanup_code(type, code, true, (;))
-cleanup_code(type, code, dbinfo) = cleanup_code(type, code, dbinfo, (;))
-
-cleanup_code(_, c, _, _) = c
-
-cleanup_code(::Val{:native}, c, dbinfo, cleanup_opts) = replace_llvm_module_name(c)
-cleanup_code(::Val{:llvm}, c, dbinfo, cleanup_opts) = replace_llvm_module_name(c)
-
-function cleanup_code(::Val{:typed}, c, dbinfo, cleanup_opts)
-    if get(cleanup_opts, :expand_llvmcall, true)
-        c = cleanup_inline_llvmcall_modules(c)
-    end
-    return c
 end

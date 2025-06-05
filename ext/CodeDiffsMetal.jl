@@ -40,15 +40,8 @@ CodeDiffs.code_highlighter(::Val{:mtl_typed}) = CodeDiffs.code_highlighter(Val{:
 CodeDiffs.code_highlighter(::Val{:mtl_llvm})  = CodeDiffs.code_highlighter(Val{:llvm}())
 # no highlighting for AGX (unsupported by GPUCompiler.jl)
 
-function CodeDiffs.cleanup_code(::Val{:mtl_typed}, c, dbinfo, cleanup_opts)
-    if get(cleanup_opts, :expand_llvmcall, true)
-        c = CodeDiffs.cleanup_inline_llvmcall_modules(c)
-    end
-    return c
-end
-
-CodeDiffs.cleanup_code(::Val{:mtl_llvm}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
-CodeDiffs.cleanup_code(::Val{:agx}, c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:mtl_native}(), c, dbinfo, cleanup_opts)
-CodeDiffs.cleanup_code(::Val{:mtl_native}, c, dbinfo, cleanup_opts) = CodeDiffs.replace_llvm_module_name(c)
+CodeDiffs.cleanup_code(::Val{:mtl_typed},  c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:gpu_typed}(), c, dbinfo, cleanup_opts)
+CodeDiffs.cleanup_code(::Val{:mtl_llvm},   c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:gpu_llvm}(), c, dbinfo, cleanup_opts)
+CodeDiffs.cleanup_code(::Val{:mtl_native}, c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:agx}(), c, dbinfo, cleanup_opts)
 
 end
