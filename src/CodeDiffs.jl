@@ -23,6 +23,9 @@ const Revise_PKG_ID = Base.PkgId(Base.UUID("295af30f-e4ad-537b-8983-00126c2a3abe
 include("cleanup/cleanup.jl")
 using .Cleanup
 
+include("stats/stats.jl")
+using .Stats
+
 include("CodeDiff.jl")
 include("get_code.jl")
 include("highlighting.jl")

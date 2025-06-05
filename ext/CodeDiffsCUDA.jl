@@ -57,10 +57,10 @@ CodeDiffs.get_code_dispatch(::Val{:ptx},         f, types; kwargs...) = CodeDiff
 CodeDiffs.get_code_dispatch(::Val{:cuda_native}, f, types; kwargs...) = code_gpu_native(f, types; kwargs...)
 CodeDiffs.get_code_dispatch(::Val{:sass},        f, types; kwargs...) = code_sass(f, types; kwargs...)
 
-function CodeDiffs.get_code_dispatch(::Val{:cuda_stats}, f, types; kwargs...)
-    ptx_source = code_gpu_native(f, types; kwargs...)
-    sass_source = code_sass(f, types; kwargs...)
-    return extract_kernel_stats(ptx_source, sass_source)
+function CodeDiffs.get_code_dispatch(::Val{:cuda_stats}, f, types; stats_opts=(;), kwargs...)
+    ptx_source  = CodeDiffs.get_code_dispatch(Val(:ptx),  f, types; kwargs...)
+    sass_source = CodeDiffs.get_code_dispatch(Val(:sass), f, types; kwargs...)
+    return CodeDiffs.extract_stats(Val(:cuda_stats), (ptx_source, sass_source), stats_opts)
 end
 
 @specialize
