@@ -9,7 +9,7 @@ A difference between `code₁` and `code₂`.
 should have syntax highlighting. When showing the differences, their formatting will be
 re-applied.
 
-For cleaner differences, use [`replace_llvm_module_name`](@ref) on all codes.
+For cleaner differences, use [`cleanup_code`](@ref) on all codes.
 
 Use [`optimize_line_changes!`](@ref) to improve the difference.
 
