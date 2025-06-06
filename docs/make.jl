@@ -16,7 +16,9 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "Extensions" => "extensions.md"
+        "Cleanup" => "cleanup.md",
+        "Code stats" => "stats.md",
+        "Extensions" => "extensions.md",
     ],
     doctest = can_doctest
 )
