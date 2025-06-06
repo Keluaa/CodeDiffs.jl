@@ -18,7 +18,5 @@ extract_stats(type, code) = extract_stats(type, code, (;))
 
 include("ptx.jl")
 include("gcn.jl")
-include("x86.jl")
-include("native.jl")
 
 end
