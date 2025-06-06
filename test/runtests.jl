@@ -93,7 +93,7 @@ if IN_CI && !haskey(ENV, "REFERENCE_TESTS_STAGING_PATH")
     # See https://github.com/JuliaTesting/ReferenceTests.jl/blob/master/src/test_reference.jl#L184
     mismatch_dir = joinpath(@__DIR__, "references_mismatch")
     ENV["REFERENCE_TESTS_STAGING_PATH"] = mismatch_dir
-    mkdir(mismatch_dir)
+    mkpath(mismatch_dir)
 end
 
 
