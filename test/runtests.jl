@@ -67,8 +67,34 @@ jl_options_overload(:isinteractive, prev)
 
 
 # Enable printing diffs to stdout only in CI by default
-const TEST_PRINT_DIFFS = parse(Bool, get(ENV, "TEST_PRINT_DIFFS", get(ENV, "CI", "false")))
-const TEST_IO = TEST_PRINT_DIFFS ? stdout : IOContext(IOBuffer(), stdout)
+const IN_CI = parse(Bool, get(ENV, "CI", "false"))
+const TEST_PRINT_DIFFS = IN_CI || parse(Bool, get(ENV, "TEST_PRINT_DIFFS", "false"))
+const TEST_IO = let
+    if TEST_PRINT_DIFFS
+        if IN_CI
+            # Printing everything to a stdout in CI is annoying and makes reading the output difficult.
+            # Instead we put all output to a file which is then stored as a artifact.
+            # The file is treated as if it has color support, therefore it will have special characters.
+            out_file = open(joinpath(@__DIR__, "tests_output.txt"), "w")
+            IOContext(out_file, stdout)
+        else
+            stdout
+        end
+    else
+        # Print with no output, but as if it was a stdout (therefore with colors, etc...).
+        # We don't use `devnull` for this, as it skips from formating calls.
+        IOContext(IOBuffer(), stdout)
+    end
+end
+
+
+if IN_CI && !haskey(ENV, "REFERENCE_TESTS_STAGING_PATH")
+    # In CI, put all references mismatches in a special folder, which we put in the output artifact.
+    # See https://github.com/JuliaTesting/ReferenceTests.jl/blob/master/src/test_reference.jl#L184
+    mismatch_dir = joinpath(@__DIR__, "references_mismatch")
+    ENV["REFERENCE_TESTS_STAGING_PATH"] = mismatch_dir
+    mkdir(mismatch_dir)
+end
 
 
 function display_str(v; mime=MIME"text/plain"(), compact=false, color=true, columns=nothing)
