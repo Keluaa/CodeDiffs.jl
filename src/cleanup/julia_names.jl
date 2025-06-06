@@ -94,7 +94,7 @@ change.
 
 In Julia 1.11+, global variables names are also replaced with [`global_var_unique_gen_name_regex`](@ref).
 
-```jldoctest; setup = :(using InteractiveUtils; import CodeDiffs: replace_llvm_module_name)
+```jldoctest; setup = :(using InteractiveUtils; import CodeDiffs.Cleanup: replace_llvm_module_name)
 julia> f() = 1
 f (generic function with 1 method)
 
