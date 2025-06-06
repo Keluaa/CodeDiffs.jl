@@ -226,12 +226,38 @@ end
 
 
 @testset "SASS" begin
-    
+    # TODO
+end
+
+
+@testset "GCN" begin
+    @testset "Sample 1" begin
+        gcn_sample = readchomp("./samples/loop_kernel.gcn")
+        cleaned_gcn = CDC.cleanup_code(Val(:gcn), gcn_sample)
+
+        println(TEST_IO, "\nCleaned GCN sample 1:")
+        println(TEST_IO, cleaned_gcn)
+
+        # No more ultra long mangled names
+        @test is_removed(CDC.MANGLED_NAME_REGEX, gcn_sample, cleaned_gcn)
+
+        # All metadata is removed by default
+        @test is_removed(r".ident\s\"clang version", gcn_sample, cleaned_gcn)
+        @test is_removed(".amdhsa_kernel", gcn_sample, cleaned_gcn)
+        @test is_removed(".AMDGPU.csdata", gcn_sample, cleaned_gcn)
+        @test is_removed(".amdgpu_metadata", gcn_sample, cleaned_gcn)
+
+        # Code-gen comments are all removed
+        @test is_removed(r"; %L\d+", gcn_sample, cleaned_gcn)
+        @test is_removed(r"; %bb\.\d+:", gcn_sample, cleaned_gcn)
+        @test is_removed("divergent unreachable", gcn_sample, cleaned_gcn)
+        @test is_removed("; -- Begin function", gcn_sample, cleaned_gcn)
+        @test is_removed("; -- End function", gcn_sample, cleaned_gcn)
+    end
 end
 
 
 # TODO
-@testset "GCN" begin end
 @testset "AGX" begin end
 @testset "SPIRV" begin end
 
