@@ -44,7 +44,8 @@ function cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
         r" // callseq .+$"m => "",
         # Remove 'inline asm' comments (remove the newline as well)
         r"^\s+// (begin|end) inline asm\n"m => "",
-        # Remove the "end function" comment
+        # Remove the "begin" and "end function" comments
+        r"\s+// -- Begin function.+$"m => "",
         r"^\s+// -- End function\n"m => "",
         # Remove empty lines
         r"\n{2,}" => "\n",
