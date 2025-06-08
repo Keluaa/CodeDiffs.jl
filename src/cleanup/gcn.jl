@@ -1,6 +1,6 @@
 
 # The GCN output of LLVM's AMDGPU backend has a comment with the mangled function name
-const GCN_FUNC_NAME_COMMENT_REGEX = r"; -- Begin function "m * MANGLED_NAME_REGEX * r"$"m
+const GCN_FUNC_NAME_COMMENT_REGEX = r".globl\s+"m * MANGLED_NAME_REGEX * r"\b"m
 
 
 function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
@@ -48,12 +48,13 @@ function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
         push!(extra_patterns, align_instruction_operand(align_operands))
     end
 
-    return replace(c,
+    c = replace(c,
         llvm_module_name_patterns()...,
         # This "begin" comment is redundant
         r"\s*; -- Begin function.+$"m => "",
         extra_patterns...,
     )
+    return rstrip(c)  # remove trailing newlines
 end
 
 

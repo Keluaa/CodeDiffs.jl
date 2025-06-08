@@ -200,10 +200,10 @@ end
         @test is_removed(r"\t@%", ptx_sample, cleaned_ptx)
 
         # Reformat function calls
-        @test is_removed(r"call.+?,\R", ptx_sample, cleaned_ptx)
+        @test is_removed(r"call\S+\s+\R", ptx_sample, cleaned_ptx)
 
         # Others
-        @test !has_trailling_spaces(cleaned_ptx)
+        @test !has_trailing_spaces(cleaned_ptx)
         @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
 
         # Make sure we didn't remove any instruction by mistake
@@ -220,15 +220,17 @@ end
         println(TEST_IO, cleaned_ptx)
 
         # Proper cleanup of each parameter name
-        @test count(func_name * r"\d+_param_\d+\b", ptx_sample) == 3
-        @test count(func_name * r"_param_\d+\b", cleaned_ptx) == 3
+        @test count(func_name * r"_\d+_param_\d+\b", ptx_sample) == 6
+        @test count(r"\bparam_\d+\b", cleaned_ptx) == 6
+
+        # Others
+        @test !has_trailing_spaces(cleaned_ptx)
+        @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
+        @test !endswith(cleaned_ptx, r"\R")  # no trailing newlines
 
         # Make sure we didn't remove any instruction by mistake
         @test count(';', ptx_sample) == count(';', cleaned_ptx)
     end
-
-
-    # TODO: calls with 0 parameters are not reformatted correctly
 end
 
 
@@ -257,9 +259,14 @@ end
         # Code-gen comments are all removed
         @test is_removed(r"; %L\d+", gcn_sample, cleaned_gcn)
         @test is_removed(r"; %bb\.\d+:", gcn_sample, cleaned_gcn)
-        @test is_removed("divergent unreachable", gcn_sample, cleaned_gcn)
+        @test is_removed("; divergent unreachable", gcn_sample, cleaned_gcn)
         @test is_removed("; -- Begin function", gcn_sample, cleaned_gcn)
         @test is_removed("; -- End function", gcn_sample, cleaned_gcn)
+
+        # Others
+        @test !has_trailing_spaces(cleaned_gcn)
+        @test count(r"\R{2,}", cleaned_gcn) == 0  # no empty lines
+        @test !endswith(cleaned_gcn, r"\R")  # no trailing newlines
     end
 end
 
