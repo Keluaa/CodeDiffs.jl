@@ -231,6 +231,27 @@ end
         # Make sure we didn't remove any instruction by mistake
         @test count(';', ptx_sample) == count(';', cleaned_ptx)
     end
+
+    @testset "Sample 3" begin
+        # This sample calls a `@noinline` with no arguments and a return value
+        ptx_sample = readchomp("./samples/extern_func_with_no_params.ptx")
+        cleaned_ptx = CDC.cleanup_code(Val(:ptx), ptx_sample)
+
+        println(TEST_IO, "\nCleaned PTX sample 3:")
+        println(TEST_IO, cleaned_ptx)
+
+        # Proper cleanup of the `@noinline f()` external function
+        @test is_removed(r"\(\s+\)", ptx_sample, cleaned_ptx)
+        @test count("()", cleaned_ptx) == 2  # once for the def, once for the call
+
+        # Others
+        @test !has_trailing_spaces(cleaned_ptx)
+        @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
+        @test !endswith(cleaned_ptx, r"\R")  # no trailing newlines
+
+        # Make sure we didn't remove any instruction by mistake
+        @test count(';', ptx_sample) == count(';', cleaned_ptx)
+    end
 end
 
 
