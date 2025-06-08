@@ -256,7 +256,28 @@ end
 
 
 @testset "SASS" begin
-    # TODO
+    @testset "Sample 1" begin
+        sass_sample = readchomp("./samples/extern_func_with_no_params.sass")
+        cleaned_sass = CDC.cleanup_code(Val(:sass), sass_sample)
+
+        println(TEST_IO, "\nCleaned SASS sample 1:")
+        println(TEST_IO, cleaned_sass)
+
+        # No mangled names
+        @test is_removed(CDC.MANGLED_NAME_REGEX, sass_sample, cleaned_sass)
+
+        # Make sure we didn't remove any instruction by mistake
+        @test count(r";$"m, sass_sample) == count(r";$"m, cleaned_sass)
+
+        # Others
+        @test !has_trailing_spaces(cleaned_sass)
+        @test !endswith(cleaned_sass, r"\R")  # no trailing newlines
+
+        # Location comments should be removed with `dbinfo=false`
+        cleaned_sass_no_loc = CDC.cleanup_code(Val(:sass), sass_sample, false)
+        @test is_removed("; Location", cleaned_sass, cleaned_sass_no_loc)
+        @test count(r"\R{2,}", cleaned_sass) == count(r"\R{2,}", cleaned_sass_no_loc)  # no empty lines were added
+    end
 end
 
 
