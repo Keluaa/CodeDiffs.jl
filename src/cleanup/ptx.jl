@@ -50,6 +50,9 @@ function cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
         # Remove the "begin" and "end function" comments
         r"\s+// -- Begin function.+$"m => "",
         r"^\s+// -- End function\R"m => "",
+        # Remove the redundant comments mentioning the main function's name
+        r"^\s+// \.globl.+\R"m => "",
+        r"^\s+// @.+\R"m => "",
         # Remove empty lines
         r"\R{2,}" => "\n",
         extra_patterns...
@@ -173,7 +176,7 @@ function indent_ptx_function_calls()
         indent = " "^8
         call_attrs = strip(m[1])  # remove any '\r' on Windows
         func_name = strip(m[2])  # and again
-        if m[3] == "\n"
+        if all(isspace, m[3])
             # No parameters
             params = ""
         else
