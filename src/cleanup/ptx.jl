@@ -25,7 +25,10 @@ function cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
     if !get(cleanup_opts, :keep_block_comments, false)
         # Block comments are placed after labels, or at the beginning of a line
         # They look like "some_label: // %blabla" or "// %blabla".
-        push!(extra_patterns, r"^([a-zA-Z0-9_$%]+:)?(?:\s*)\/\/ %.+"m => s"\1")
+        push!(extra_patterns,
+            r"^([a-zA-Z0-9_$%]+:)(?:\s*)\/\/ %.+"m => s"\1",
+            r"^\/\/ %.+\R"m => "",  # when the whole line is a comment like such, remove the newline as well
+        )
     end
     if (align_preds = get(cleanup_opts, :align_preds, 8); align_preds > 0)
         # Align guard predicates such that the beginning of the instruction is at the
@@ -170,8 +173,17 @@ function indent_ptx_function_calls()
         indent = " "^8
         call_attrs = strip(m[1])  # remove any '\r' on Windows
         func_name = strip(m[2])  # and again
-        params = replace(m[3], "\n" => "\n" * indent)
-        return "call" * m[1] * m[2] * ", (" * params * "\n" * indent * ");"
+        if m[3] == "\n"
+            # No parameters
+            params = ""
+        else
+            params = replace(m[3], "\n" => "\n" * indent) * "\n" * indent
+        end
+        # For some reason, the `replace` in `cleanup_code(::Val{:ptx})` doesn't replace
+        # the function name here, so we have to do it manually.
+        func_name = replace(func_name, llvm_module_name_patterns()...)
+        # Rebuild the function call in a cleaner way
+        return "call" * call_attrs * " " * func_name * ", (" * params * ");"
     end
 
     return ptx_call_regex => indent_call_params
