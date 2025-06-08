@@ -48,11 +48,17 @@ function eval_for_revise(str, path=tempname(), init=true)
         println(file, str)
     end
 
+    # In order to support different test workflows, we use `@__MODULE__` instead of `Main`
+    # This way, we can `include("./runtests.jl")` from any module.
+    mod = @__MODULE__
     if init
-        Revise.includet(path)
+        # Equivalent to `Revise.includet(path)`
+        Revise.track(mod, path; mode=:includet)
     else
-        main_pkg_data = Revise.pkgdatas[Base.PkgId(nothing, "Main")]
-        Revise.revise_file_now(main_pkg_data, path)
+        # Replicate the behavior of `Revise.track` when a file is changed
+        pkg_id = Base.moduleroot(mod) == Main ? Base.PkgId(mod, string(mod)) : Base.PkgId(mod)
+        pkg_data = Revise.pkgdatas[pkg_id]
+        Revise.revise_file_now(pkg_data, path)
     end
 
     return path
