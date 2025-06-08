@@ -70,6 +70,11 @@ function align_instruction_operand(column)
         mnemonic_end     = m.offsets[1]
         old_operands_pos = m.offsets[2]
 
+        if all(isspace, m[2])
+            # In case the operands are just trailing spaces, return only the mnemonic
+            return m.match[1:mnemonic_end-1]
+        end
+
         # Set a minimum of spaces between the mnemonic and the operands
         old_spaces_count = old_operands_pos - mnemonic_end
         if old_spaces_count < min_spaces
