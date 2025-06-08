@@ -5,7 +5,7 @@ import CodeDiffs.Cleanup as CDC
 is_removed(needle, present_there, not_there) =
         occursin(needle, present_there) && !occursin(needle, not_there)
 
-has_trailling_spaces(str) = occursin(r"\h+(\n|$)"m, str)
+has_trailing_spaces(str) = occursin(r"\h+(\R|$)"m, str)
 
 
 @testset "Demangling" begin
@@ -200,10 +200,14 @@ end
         @test is_removed(r"\t@%", ptx_sample, cleaned_ptx)
 
         # Reformat function calls
-        @test is_removed(r"call.+?,\n", ptx_sample, cleaned_ptx)
+        @test is_removed(r"call.+?,\R", ptx_sample, cleaned_ptx)
 
         # Others
         @test !has_trailling_spaces(cleaned_ptx)
+        @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
+
+        # Make sure we didn't remove any instruction by mistake
+        @test count(';', ptx_sample) == count(';', cleaned_ptx)
     end
 
     @testset "Sample 2" begin
@@ -218,6 +222,9 @@ end
         # Proper cleanup of each parameter name
         @test count(func_name * r"\d+_param_\d+\b", ptx_sample) == 3
         @test count(func_name * r"_param_\d+\b", cleaned_ptx) == 3
+
+        # Make sure we didn't remove any instruction by mistake
+        @test count(';', ptx_sample) == count(';', cleaned_ptx)
     end
 
 

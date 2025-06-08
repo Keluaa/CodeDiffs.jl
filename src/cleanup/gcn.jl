@@ -24,7 +24,7 @@ function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
     end
     if !get(cleanup_opts, :keep_loop_comments, false)
         # Loop comments are interesting, but can be quite annoying with complex loop structures
-        push!(extra_patterns, r"\n\s+;\s+(=>\s*)?(Parent|This|This Inner|Child|in) Loop[^\n]+" => "")
+        push!(extra_patterns, r"\R\s+;\s+(=>\s*)?(Parent|This|This Inner|Child|in) Loop[^\n]+" => "")
     end
     if !get(cleanup_opts, :keep_block_comments, false)
         # Block comments are placed after labels, or at the beginning of a line
@@ -34,14 +34,14 @@ function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
     if !get(cleanup_opts, :keep_misc_comments, false)
         # Remove "; divergent unreachable" comments and others
         push!(extra_patterns,
-            r"\n\s*; divergent unreachable$"m => "",
-            r"\n\s*; implicit-def:.+$"m => "",
+            r"\R\s*; divergent unreachable"m => "",
+            r"\R\s*; implicit-def:.+$"m => "",
         )
     end
     if !get(cleanup_opts, :kernel_metadata, false)
         # Kernel metadata is stored within its dedicated ".amdhsa_kernel" section.
         # It is a bit large and somewhat relevant to the code, therefore we remove it by default.
-        push!(extra_patterns, r"^\s*\.amdhsa_kernel.+\.end_amdhsa_kernel\s"sm => "")
+        push!(extra_patterns, r"^\s*\.amdhsa_kernel.+\.end_amdhsa_kernel\R"sm => "")
     end
     if (align_operands = get(cleanup_opts, :align_operands, 12); align_operands > 0)
         # Align instruction operands such that the first operand is at the next multiple of `align_operands`.
