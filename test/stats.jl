@@ -46,6 +46,7 @@ import CodeDiffs.Stats as CDS
     @test !CDS.cmp_ptx_type("u128", "u64") && CDS.cmp_ptx_type("u64", "u128")
     @test !CDS.cmp_ptx_type("u8", "u8")
     @test !CDS.cmp_ptx_type("", "")
+    @test !CDS.cmp_ptx_type("u8", "") && CDS.cmp_ptx_type("", "u8")
 end
 
 
