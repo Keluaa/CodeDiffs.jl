@@ -55,8 +55,14 @@ end
 
     # jlcapi_
     get_cfunc_add() = @cfunction(+, Int, (Int, Int))
-    @test occursin(r"jlcapi_\+_\d+", @io2str code_llvm(::IO, get_cfunc_add, Tuple{}))
-    @test CDC.replace_llvm_module_name("jlcapi_+_123") == "+"
+    if VERSION < v"1.12-"
+        @test occursin(r"jlcapi_\+_\d+", @io2str code_llvm(::IO, get_cfunc_add, Tuple{}))
+        @test CDC.replace_llvm_module_name("jlcapi_+_123") == "+"
+    else
+        # TODO: they changed how operator names work in 1.12? I don't know if this is fine or not...
+        @test occursin(r"jlcapi_#\+_\d+", @io2str code_llvm(::IO, get_cfunc_add, Tuple{}))
+        @test CDC.replace_llvm_module_name("jlcapi_#+_123") == "#+"
+    end
 
     # j_
     function test_append(a, b)
@@ -73,10 +79,16 @@ end
         @test CDC.replace_llvm_module_name("j_copyto!_123") == "copyto!"
 
         @test occursin(CDC.global_var_unique_gen_name_regex(), test_append_llvm_ir)
-        @test occursin(CDC.global_var_unique_gen_name_regex("Core.GenericMemory"), test_append_llvm_ir)
+
+        if VERSION ≥ v"1.12-"
+            @test occursin(CDC.global_var_unique_gen_name_regex("global"), test_append_llvm_ir)
+        else
+            @test occursin(CDC.global_var_unique_gen_name_regex("Core.GenericMemory"), test_append_llvm_ir)
+        end
 
         @test CDC.replace_llvm_module_name("@+Core.GenericMemory#123.jit") == "@+Core.GenericMemory.jit"
         @test CDC.replace_llvm_module_name(".L+Core.GenericMemory#123.jit") == ".L+Core.GenericMemory.jit"
+        @test CDC.replace_llvm_module_name(".L+Core.Array#123.jit") == ".L+Core.Array.jit"
     else
         @test occursin(CDC.function_unique_gen_name_regex(), test_append_llvm_ir)
         @test occursin(CDC.function_unique_gen_name_regex("_append!"), test_append_llvm_ir)

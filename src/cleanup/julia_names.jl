@@ -63,6 +63,9 @@ Regex matching all global variable names which might change from one compilation
 !!! compat "Julia 1.11"
     Those global variables names only appear starting from Julia 1.11.
 
+!!! compat "Julia 1.12"
+    Those global variables may now start with `jl_` instead of `+`.
+
 In LLVM IR, those variables are mentioned as such: `@"+Core.GenericMemory#14067.jit"`.
 In native code, they look like this: `".L+Core.GenericMemory#13985.jit"`, with maybe some
 `.set` and `.size` sections at the end of the code (in x86 ASM).
@@ -79,8 +82,15 @@ in `julia_pgv(ctx, cname, addr)` at [`'src/cgutils.cpp#L358'`](https://github.co
 which is then added a `".jit"` suffix in [`'src/aotcompile.cpp#L2064'`](https://github.com/JuliaLang/julia/blob/08e1fc0abb959ce5bd4c75b05518a41b85e4aba1/src/aotcompile.cpp#L2064)
 when doing code introspection.
 """
-global_var_unique_gen_name_regex() = r"(\+[^\"\s,;\-']+)#\d+\.jit"
-global_var_unique_gen_name_regex(global_name) = Regex("(\\+\\Q$(global_name)\\E)#\\d+\\.jit")
+function global_var_unique_gen_name_regex end
+
+@static if VERSION < v"1.12-"
+    global_var_unique_gen_name_regex() = r"(\+[^\"\s,;\-']+)#\d+\.jit"
+    global_var_unique_gen_name_regex(global_name) = Regex("(\\+\\Q$(global_name)\\E)#\\d+\\.jit")
+else
+    global_var_unique_gen_name_regex() = r"((?:\+|jl_)[^\"\s,;\-']+)#\d+\.jit"
+    global_var_unique_gen_name_regex(global_name) = Regex("((?:\\+|jl_)\\Q$(global_name)\\E)#\\d+\\.jit")
+end
 
 
 """
