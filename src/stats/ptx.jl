@@ -29,6 +29,14 @@ struct PTXStats
 end
 
 
+function Base.:(==)(a::PTXStats, b::PTXStats)
+    return a.defs == b.defs &&
+           a.uses_dynamic_shared_mem == b.uses_dynamic_shared_mem &&
+           a.total == b.total &&
+           a.inst == b.inst
+end
+
+
 function extract_stats(::Val{:ptx}, ptx_source, stats_opts)
     # Matches most PTX variable declarations, in any memory space (group "space"), with any
     # attributes (group "attributes"), and an optional array/parametric definition (group "array").
@@ -168,6 +176,15 @@ struct SASSStats
 end
 
 
+function Base.:(==)(a::SASSStats, b::SASSStats)
+    return a.SM == b.SM &&
+           a.registers == b.registers &&
+           a.workgroup_sync == b.workgroup_sync &&
+           a.warp_sync == b.warp_sync &&
+           a.calls == b.calls
+end
+
+
 function extract_stats(::Val{:sass}, sass_source, stats_opts)
     # The amount of registers per thread (I hope? This isn't documented anywhere...)
     m_reg = match(r"SHI_REGISTERS=(\d+)", sass_source)
@@ -201,6 +218,9 @@ struct CUDAKernelStats
 end
 
 
+Base.:(==)(a::CUDAKernelStats, b::CUDAKernelStats) = a.ptx == b.ptx && a.sass == b.sass
+
+
 function extract_stats(::Val{:cuda_stats}, (ptx_source, sass_source), stats_opts)
     ptx_stats = extract_stats(Val(:ptx), ptx_source, stats_opts)
     sass_stats = extract_stats(Val(:sass), sass_source, stats_opts)
@@ -228,7 +248,7 @@ function cmp_ptx_type(a::AbstractString, b::AbstractString)
 end
 
 
-function Base.show(io::IO, stats::PTXStats)
+function Base.show(io::IO, ::MIME"text/plain", stats::PTXStats)
     println(io, "Kernel memory stats (static allocations):")
     println(io, " - Global  ", Base.format_bytes(stats.total.global))
     println(io, " - Const   ", Base.format_bytes(stats.total.constant))
@@ -267,7 +287,7 @@ function Base.show(io::IO, stats::PTXStats)
 end
 
 
-function Base.show(io::IO, stats::SASSStats)
+function Base.show(io::IO, ::MIME"text/plain", stats::SASSStats)
     println(io, "SASS source stats:")
     println(io, " - SM version        ", stats.SM)
     println(io, " - Registers usage   ", stats.registers)
@@ -278,10 +298,10 @@ function Base.show(io::IO, stats::SASSStats)
 end
 
 
-function Base.show(io::IO, stats::CUDAKernelStats)
-    show(io, stats.ptx)
+function Base.show(io::IO, ::MIME"text/plain", stats::CUDAKernelStats)
+    show(io, MIME"text/plain"(), stats.ptx)
     println(io)
     println(io)
-    show(io, stats.sass)
+    show(io, MIME"text/plain"(), stats.sass)
 end
 
