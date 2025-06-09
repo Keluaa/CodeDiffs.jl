@@ -63,9 +63,9 @@ function code_native(
     else
         src = Base.Compiler.typeinf_code(Base.Compiler.NativeInterpreter(world), mi, true)
         if dump_module
-            f_str = InteractiveUtils._dump_function_native_assembly(mi, src, world, false, syntax, debuginfo, binary, raw, params)
+            f_str = InteractiveUtils._dump_function_native_assembly(mi, src, false, syntax, debuginfo, binary, raw, params)
         else
-            f_str = InteractiveUtils._dump_function_native_disassembly(mi, src, world, false, syntax, debuginfo, binary)
+            f_str = InteractiveUtils._dump_function_native_disassembly(mi, src, false, syntax, debuginfo, binary)
         end
     end
 
@@ -127,7 +127,7 @@ function code_llvm(
     else
         src = Base.Compiler.typeinf_code(Base.Compiler.NativeInterpreter(world), mi, true)
         f_str = InteractiveUtils._dump_function_llvm(
-            mi, src, world, false, !raw, dump_module, optimize, debuginfo, params
+            mi, src, false, !raw, dump_module, optimize, debuginfo, params
         )
     end
 
