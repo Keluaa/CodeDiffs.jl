@@ -1,6 +1,6 @@
 
 # The GCN output of LLVM's AMDGPU backend has a comment with the mangled function name
-const GCN_FUNC_NAME_COMMENT_REGEX = r".globl\s+"m * MANGLED_NAME_REGEX * r"\b"m
+const GCN_FUNC_NAME_COMMENT_REGEX = r"\.globl\s+"m * MANGLED_NAME_REGEX * r"\b"m
 
 
 function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
@@ -43,8 +43,8 @@ function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
         # It is a bit large and somewhat relevant to the code, therefore we remove it by default.
         push!(extra_patterns, r"^\s*\.amdhsa_kernel.+\.end_amdhsa_kernel\R"sm => "")
     end
-    if (align_operands = get(cleanup_opts, :align_operands, 12); align_operands > 0)
-        # Align instruction operands such that the first operand is at the next multiple of `align_operands`.
+    if (align_operands = get(cleanup_opts, :align_operands, 24); align_operands > 0)
+        # Align instruction operands such that the first operand is at the `align_operands` column.
         push!(extra_patterns, align_instruction_operand(align_operands))
     end
 
@@ -60,34 +60,25 @@ end
 
 function align_instruction_operand(column)
     # The regex extracts the operands from "   any_instruction ops..." to the second match group.
-    operand_regex = r"^\s*\w+(\h+)(.+)$"m
-    min_spaces = max(4, cld(column, 4))
+    # In order to remove any trailing spaces, we also match the case when there are no operands.
+    operand_regex = r"^\s*\w+(\h+)(.*)$"m
 
     function align_to_nth_column(c)
         m = match(operand_regex, c)
         isnothing(m) && return c
 
         mnemonic_end     = m.offsets[1]
-        old_operands_pos = m.offsets[2]
 
         if all(isspace, m[2])
             # In case the operands are just trailing spaces, return only the mnemonic
             return m.match[1:mnemonic_end-1]
         end
 
-        # Set a minimum of spaces between the mnemonic and the operands
-        old_spaces_count = old_operands_pos - mnemonic_end
-        if old_spaces_count < min_spaces
-            operands_pos = old_operands_pos - old_spaces_count + min_spaces
-        else
-            operands_pos = old_operands_pos
-        end
-
-        new_operands_pos = cld(operands_pos, column) * column
-        if old_operands_pos == new_operands_pos
+        # Place the operand at the `column`, unless the mnemonic is too long
+        if mnemonic_end ≥ column
             return c
         else
-            extra_spaces = " "^(new_operands_pos - old_operands_pos)
+            extra_spaces = " "^(column - mnemonic_end)
             return m.match[1:mnemonic_end-1] * extra_spaces * m[2]
         end
     end

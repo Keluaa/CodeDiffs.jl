@@ -293,7 +293,7 @@ end
         @test is_removed(CDC.MANGLED_NAME_REGEX, gcn_sample, cleaned_gcn)
 
         # All metadata is removed by default
-        @test is_removed(r".ident\s\"clang version", gcn_sample, cleaned_gcn)
+        @test is_removed(r"\.ident\s\"clang version", gcn_sample, cleaned_gcn)
         @test is_removed(".amdhsa_kernel", gcn_sample, cleaned_gcn)
         @test is_removed(".AMDGPU.csdata", gcn_sample, cleaned_gcn)
         @test is_removed(".amdgpu_metadata", gcn_sample, cleaned_gcn)
