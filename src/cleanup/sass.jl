@@ -1,6 +1,6 @@
 
-# SASS is the same as PTX, but the name is surrounded by a lot of dashes
-const SASS_FUNC_NAME_COMMENT_REGEX = r"//-{5,} \.text\."m * MANGLED_NAME_REGEX * r" -{5,}$"m
+# For SASS, suppose that the first `.global` declaration is the name of our function.
+const SASS_FUNC_NAME_COMMENT_REGEX = r"^\s*\.global\s+"m * MANGLED_NAME_REGEX * r"\b"m
 
 
 function cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
