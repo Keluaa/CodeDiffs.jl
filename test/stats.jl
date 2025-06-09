@@ -85,4 +85,43 @@ end
     end
 end
 
+
+@testset "GCN" begin
+    @testset "Sample 1" begin
+        gcn_sample = readchomp("./samples/loop_kernel.gcn")
+        gcn_stats = CDS.extract_stats(Val(:gcn), gcn_sample)
+
+        @test gcn_stats.scalar_registers == 26
+        @test gcn_stats.vector_registers == 18
+        @test gcn_stats.accu_registers   == 0
+        @test gcn_stats.sgpr_spill_count == 0
+        @test gcn_stats.vgpr_spill_count == 0
+        @test !gcn_stats.uses_dyn_stack
+
+        @test gcn_stats.arguments_count == 12
+        @test gcn_stats.arguments_size  == 304
+
+        @test gcn_stats.target_triple  == "amdgcn-amd-amdhsa"
+        @test gcn_stats.ISA            == "gfx90a"
+        @test gcn_stats.architecture   == "CDNA"
+        @test gcn_stats.arch_version   == v"2"
+        @test gcn_stats.wavefront_size == 64
+
+        @test gcn_stats.inst_count        == 325
+        @test gcn_stats.scalar_inst_count == 101
+        @test gcn_stats.vector_inst_count == 202
+        @test gcn_stats.dyn_branch_count  == 0
+        @test gcn_stats.barrier_count     == 2
+        @test gcn_stats.sync_count        == 8
+
+        # Since we remove the metadata when cleaning the GCN source, almost all stats
+        # become unavailable.
+        cleaned_gcn = CDC.cleanup_code(Val(:gcn), gcn_sample)
+        cleaned_gcn_stats = CDS.extract_stats(Val(:gcn), cleaned_gcn)
+        @test cleaned_gcn_stats.scalar_registers == 0
+        @test cleaned_gcn_stats.inst_count == gcn_stats.inst_count
+        @test gcn_stats != cleaned_gcn_stats
+    end
+end
+
 end
