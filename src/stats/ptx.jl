@@ -232,7 +232,7 @@ function cmp_ptx_type(a::AbstractString, b::AbstractString)
     # `isless` for pretty sorting a list of PTX types.
     # We only consider fundamental PTX types, which simplifies things a lot.
     # See https://docs.nvidia.com/cuda/parallel-thread-execution/index.html?highlight=global#fundamental-types
-    isempty(a) || isempty(b) && return a < b
+    (isempty(a) || isempty(b)) && return a < b
 
     # Hardcoded ordering, for simplicity
     type_order = ('p' #= pred =#, 'b', 'u', 's', 'f')
