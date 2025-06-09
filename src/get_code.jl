@@ -38,7 +38,7 @@ function code_native(
     @nospecialize(f, types)
     mi = method_instance(f, types, world)
 
-    @static if VERSION < v"1.10"
+    @static if VERSION < v"1.10-"
         params = Base.CodegenParams(debug_info_kind=Cint(0))
     else
         params = Base.CodegenParams(debug_info_kind=Cint(0), safepoint_on_entry=raw, gcstack_arg=raw)
@@ -52,9 +52,9 @@ function code_native(
     end
 
     # See `InteractiveUtils._dump_function`
-    @static if VERSION < v"1.10"
+    @static if VERSION < v"1.10-"
         f_str = InteractiveUtils._dump_function_linfo_native(mi, world, false, syntax, debuginfo, binary)
-    elseif VERSION < v"1.12"
+    elseif VERSION < v"1.12-"
         if dump_module
             f_str = InteractiveUtils._dump_function_native_assembly(mi, world, false, syntax, debuginfo, binary, raw, params)
         else
@@ -116,11 +116,11 @@ function code_llvm(
     end
 
     # See `InteractiveUtils._dump_function`
-    @static if VERSION < v"1.10"
+    @static if VERSION < v"1.10-"
         f_str = InteractiveUtils._dump_function_linfo_llvm(
             mi, world, false, !raw, dump_module, optimize, debuginfo, params
         )
-    elseif VERSION < v"1.12"
+    elseif VERSION < v"1.12-"
         f_str = InteractiveUtils._dump_function_llvm(
             mi, world, false, !raw, dump_module, optimize, debuginfo, params
         )
