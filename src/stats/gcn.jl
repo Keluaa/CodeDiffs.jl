@@ -45,14 +45,16 @@ function extract_stats(::Val{:gcn}, gcn_source, stats_opts)
     wavefront_size = get(kernel_metadata, ".wavefront_size", 64)
 
     target = parse_amdgpu_target(gcn_target)
-    arch, arch_version = amdgpu_processor_to_architecture(target.processor)
+    processor = isnothing(target) ? "unknown" : target.processor
+    target_triple = isnothing(target) ? "" : join((target.arch, target.vendor, target.os), '-')
+    arch, arch_version = amdgpu_processor_to_architecture(processor)
 
     code = extract_gcn_code_stats(gcn_source; arch, arch_version)
 
     return GCNStats(
         sgpr_count, vgpr_count, agpr_count, sgpr_spills, vgpr_spills, uses_dyn_stack,
         arguments_count, arguments_size,
-        join((target.arch, target.vendor, target.os), '-'), target.processor,
+        target_triple, processor,
         string(arch), arch_version, wavefront_size,
         code.inst_count, code.scalar_inst_count, code.vector_inst_count,
         code.dyn_branch_count, code.barrier_count, code.sync_count,
@@ -85,7 +87,7 @@ end
 
 
 function amdgpu_processor_to_architecture(processor)
-    processor === nothing && return :unknown, v"0"
+    processor == "unknown" && return :unknown, v"0"
 
     # Deduce the architecture from the processor, and return `(arch, version)`.
     # See this table: https://llvm.org/docs/AMDGPUUsage.html#amdgpu-processor-table
@@ -153,9 +155,9 @@ function extract_gcn_code_stats(gcn_source; arch=:unknown, arch_version=v"0")
 
     # Should match all GCN, CDNA or RDNA instructions. The "name" is the instruction name while
     # "args" are all characters after it.
-    gcn_inst_regex = r"^\s*\b(?<name>\w+)\b(?<args>.+)?(?:;|$)"m
+    gcn_inst_regex = r"^\s+\b(?<name>\w+)\b(?<args>\h+.*?)?(?:;|\R)"m
 
-    inst_count        = 0    
+    inst_count        = 0
     scalar_inst_count = 0
     vector_inst_count = 0
     dyn_branch_count  = 0
@@ -199,13 +201,11 @@ function extract_gcn_yaml_metadata(gcn_source)
 
     metadata_start_regex = r"^\s*\.amdgpu_metadata"m
     metadata_start = findfirst(metadata_start_regex, gcn_source)
+    isnothing(metadata_start) && return v"0", "", Dict()
 
     metadata_end_regex = r"^\s*\.end_amdgpu_metadata"m
     metadata_end = findnext(metadata_end_regex, gcn_source, last(metadata_start))
-
-    if isnothing(metadata_start) || isnothing(metadata_end)
-        return v"0", "", Dict()
-    end
+    isnothing(metadata_end) && return v"0", "", Dict()
 
     raw_yaml_metadata = @view gcn_source[last(metadata_start)+1:first(metadata_end)-1]
     yaml_metadata = YAML.load(raw_yaml_metadata)
