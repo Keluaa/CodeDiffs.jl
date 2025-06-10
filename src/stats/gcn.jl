@@ -8,6 +8,10 @@ struct GCNStats
     vgpr_spill_count :: Int
     uses_dyn_stack   :: Bool
 
+    # Memory stats
+    code_size :: Int
+    LDS_size  :: Int  # Static allocations of shared memory only
+
     # Arguments
     arguments_count :: Int
     arguments_size  :: Int  # in bytes
@@ -51,22 +55,19 @@ function extract_stats(::Val{:gcn}, gcn_source, stats_opts)
 
     code = extract_gcn_code_stats(gcn_source; arch, arch_version)
 
+    csdata = extract_gcn_csdata(gcn_source)
+    code_bytes = get(csdata, "codeLenInByte", 0)
+    LDS_bytes  = get(csdata, "LDSByteSize", 0)
+
     return GCNStats(
         sgpr_count, vgpr_count, agpr_count, sgpr_spills, vgpr_spills, uses_dyn_stack,
+        code_bytes, LDS_bytes,
         arguments_count, arguments_size,
         target_triple, processor,
         string(arch), arch_version, wavefront_size,
         code.inst_count, code.scalar_inst_count, code.vector_inst_count,
         code.dyn_branch_count, code.barrier_count, code.sync_count,
     )
-end
-
-
-parse_match_group(::Nothing, group, default) = default
-parse_match_group(m::RegexMatch, group, default::String) = @something m[group] default
-function parse_match_group(m::RegexMatch, group, default::T) where {T}
-    isnothing(m[group]) && return default
-    return @something tryparse(T, m[group]) default
 end
 
 
@@ -191,6 +192,37 @@ function extract_gcn_code_stats(gcn_source; arch=:unknown, arch_version=v"0")
 end
 
 
+function extract_gcn_csdata(gcn_source)
+    # Between the GCN kernel source and the YAML metadata, there is a "AMDGPU.csdata" section.
+    # I cannot find where it is documented (if it is), therefore it shouldn't be relied on too much.
+    # It likely contains important information for the GPU driver, therefore it may be reliable, but
+    # it may also depend on the target.
+    # Some of the information is also found in the YAML metadata, which should be preferred over
+    # this one, as its format and content does not depend on the target.
+    csdata_start = findfirst(r"\.section\s+\.AMDGPU\.csdata", gcn_source)
+    isnothing(csdata_start) && return Dict{String, Int}()
+
+    csdata_end = findnext(".text", gcn_source, last(csdata_start))
+    isnothing(csdata_end) && return Dict{String, Int}()
+
+    csdata_section = @view gcn_source[last(csdata_start):first(csdata_end)]
+
+    # Captures the key and value (decimal) of all entries within the csdata section.
+    # Examples:
+    #  "; NumSgprs: 8" => key="NumSgprs", value="8"
+    #  "; COMPUTE_PGM_RSRC2:SCRATCH_EN: 0" => key="COMPUTE_PGM_RSRC2:SCRATCH_EN", value="0"
+    csdata_regex = r"^;\s(?<key>[\w:]+)\s?[=:]\s(?<value>\d+)\b"m
+
+    csdata = Dict{String, Int}()
+    for m in eachmatch(csdata_regex, csdata_section)
+        value = @something tryparse(Int, m[:value]) 0
+        csdata[m[:key]] = value
+    end
+
+    return csdata
+end
+
+
 function extract_gcn_yaml_metadata(gcn_source)
     # As per the LLVM docs, this section is in YAML.
     # https://llvm.org/docs/AMDGPUUsage.html#id112
@@ -230,6 +262,10 @@ function Base.show(io::IO, stats::GCNStats)
     println(io, " - Vector registers (VGPR)  ", stats.vector_registers, " (", stats.vgpr_spill_count, " spilled)")
     println(io, " - Accum. registers (AGPR)  ", stats.accu_registers)
     println(io, " - Uses dynamic stack       ", stats.uses_dyn_stack)
+    println(io)
+    println(io, "Kernel memory stats:")
+    println(io, " - Instructions             ", Base.format_bytes(stats.code_size))
+    println(io, " - Shared mem. (LDS)        ", Base.format_bytes(stats.LDS_size), " (static allocations)")
     println(io)
     println(io, "Kernel target:")
     println(io, " - Target                   ", stats.target_triple)
