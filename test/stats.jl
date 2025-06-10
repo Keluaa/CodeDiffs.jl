@@ -62,8 +62,6 @@ end
         @test sass_stats.warp_sync      == 0
         @test sass_stats.calls          == 12
 
-        disp_sass_stats = display_str(sass_stats)
-
         cleaned_sass = CDC.cleanup_code(Val(:sass), sass_sample)
         cleaned_sass_stats = CDS.extract_stats(Val(:sass), cleaned_sass)
         @test sass_stats == cleaned_sass_stats
@@ -102,6 +100,9 @@ end
         @test gcn_stats.arguments_count == 12
         @test gcn_stats.arguments_size  == 304
 
+        @test gcn_stats.code_size == 1892
+        @test gcn_stats.LDS_size  == 34
+
         @test gcn_stats.target_triple  == "amdgcn-amd-amdhsa"
         @test gcn_stats.ISA            == "gfx90a"
         @test gcn_stats.architecture   == "CDNA"
@@ -122,6 +123,33 @@ end
         @test cleaned_gcn_stats.scalar_registers == 0
         @test cleaned_gcn_stats.inst_count == gcn_stats.inst_count
         @test gcn_stats != cleaned_gcn_stats
+
+        disp_gcn_stats = display_str(gcn_stats)
+        @test occursin("CDNA 2", disp_gcn_stats)
+    end
+
+    @testset "Architecture" begin
+        @test CDS.amdgpu_processor_to_architecture("unknown") == (:unknown, v"0")
+        @test CDS.amdgpu_processor_to_architecture("gfx0")    == (:unknown, v"0")
+
+        @test CDS.amdgpu_processor_to_architecture("gfx600")  == (:GCN,  v"1")
+        @test CDS.amdgpu_processor_to_architecture("gfx700")  == (:GCN,  v"2")
+        @test CDS.amdgpu_processor_to_architecture("gfx800")  == (:GCN,  v"3")
+        @test CDS.amdgpu_processor_to_architecture("gfx900")  == (:GCN,  v"5")
+
+        @test CDS.amdgpu_processor_to_architecture("gfx908")  == (:CDNA, v"1")
+        @test CDS.amdgpu_processor_to_architecture("gfx90a")  == (:CDNA, v"2")
+        @test CDS.amdgpu_processor_to_architecture("gfx942")  == (:CDNA, v"3")
+        @test CDS.amdgpu_processor_to_architecture("gfx950")  == (:CDNA, v"3")
+
+        @test CDS.amdgpu_processor_to_architecture("gfx1010") == (:RDNA, v"1")
+        @test CDS.amdgpu_processor_to_architecture("gfx1100") == (:RDNA, v"3")
+        @test CDS.amdgpu_processor_to_architecture("gfx1200") == (:RDNA, v"4")
+
+        @test CDS.amdgpu_processor_to_architecture("gfx9-generic")    == (:GCN,  v"5")
+        @test CDS.amdgpu_processor_to_architecture("gfx10-3-generic") == (:RDNA, v"2")
+        @test CDS.amdgpu_processor_to_architecture("gfx11-generic")   == (:RDNA, v"3")
+        @test CDS.amdgpu_processor_to_architecture("gfx12-generic")   == (:RDNA, v"4")
     end
 end
 
