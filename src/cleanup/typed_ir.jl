@@ -73,6 +73,14 @@ function cleanup_inline_llvmcall_modules(c::Vector{Any})
 end
 
 
+"""
+    cleanup_code(::Val{:typed}, code, dbinfo, cleanup_opts)
+
+Cleanup Julia typed IR `code`.
+
+Accepted `cleanup_opts` and their default values:
+ - `expand_llvmcall=true`: replace raw inline LLVM IR with multiline blocks with syntax highlighting.
+"""
 function cleanup_code(::Val{:typed}, c, dbinfo, cleanup_opts)
     if get(cleanup_opts, :expand_llvmcall, true)
         c = cleanup_inline_llvmcall_modules(c)

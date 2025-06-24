@@ -8,8 +8,6 @@ CurrentModule = CodeDiffs.Cleanup
 cleanup_code
 ```
 
-<!-- TODO -->
-
 ## LLVM and mangling
 
 ```@docs

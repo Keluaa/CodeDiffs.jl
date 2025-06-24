@@ -3,6 +3,16 @@
 const SASS_FUNC_NAME_COMMENT_REGEX = r"^\s*\.global\s+"m * MANGLED_NAME_REGEX * r"\b"m
 
 
+"""
+    cleanup_code(::Val{:sass}, code, dbinfo, cleanup_opts)
+
+Cleanup SASS `code`.
+
+If `dbinfo`, then location comments are kept.
+
+Accepted `cleanup_opts` and their default values:
+ - `demangle=true`: demangle names within the code
+"""
 function cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
     # TODO: SASS problems:
     # Registers seem to be assigned randomly, changing from one call to another with the
