@@ -1,7 +1,6 @@
 
 using Aqua
 using CodeDiffs
-using CUDA
 using DeepDiffs
 using InteractiveUtils
 using KernelAbstractions
@@ -534,6 +533,4 @@ end
     end
 
     include("KernelAbstractions.jl")
-
-    CUDA.functional() && include("CUDA.jl")
 end
