@@ -37,4 +37,7 @@ CodeDiffs.cleanup_code(::Val{:one_typed},  c, dbinfo, cleanup_opts) = CodeDiffs.
 CodeDiffs.cleanup_code(::Val{:one_llvm},   c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:gpu_llvm}(), c, dbinfo, cleanup_opts)
 CodeDiffs.cleanup_code(::Val{:one_native}, c, dbinfo, cleanup_opts) = CodeDiffs.cleanup_code(Val{:spirv}(), c, dbinfo, cleanup_opts)
 
+# TODO: compile the SPIRV source into the native GPU's assembly (PTX, GCN...)
+#   it could maybe be done with `oneL0.zeModuleGetNativeBinary`?
+
 end

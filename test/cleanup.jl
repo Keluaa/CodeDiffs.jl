@@ -325,8 +325,31 @@ end
 end
 
 
+@testset "SPIRV" begin
+    @testset "daxpy" begin
+        spirv_sample = readchomp("./samples/daxpy.spirv")
+        cleaned_spirv = CDC.cleanup_code(Val(:spirv), spirv_sample)
+        with_meta_spirv = CDC.cleanup_code(Val(:spirv), spirv_sample, true, (; strip_meta=false))
+
+        println(TEST_IO, "\nCleaned SPIRV sample daxpy:")
+        println(TEST_IO, cleaned_spirv)
+
+        # No more ultra long mangled names, even in meta operations
+        @test is_removed(CDC.MANGLED_NAME_REGEX, spirv_sample, cleaned_spirv)
+        @test is_removed(CDC.MANGLED_NAME_REGEX, spirv_sample, with_meta_spirv)
+
+        @test cleaned_spirv != with_meta_spirv
+        @test is_removed("OpCapability", with_meta_spirv, cleaned_spirv)
+
+        # Others
+        @test !has_trailing_spaces(cleaned_spirv)
+        @test count(r"\R{2,}", cleaned_spirv) == 0  # no empty lines
+        @test !endswith(cleaned_spirv, r"\R")  # no trailing newlines
+    end
+end
+
+
 # TODO
 @testset "AGX" begin end
-@testset "SPIRV" begin end
 
 end

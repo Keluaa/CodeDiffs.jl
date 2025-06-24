@@ -1,0 +1,180 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 103
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Float64
+               OpCapability Int64
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %96 "_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE" %__spirv_BuiltInWorkgroupId %__spirv_BuiltInLocalInvocationId %__spirv_BuiltInGlobalInvocationId
+               OpExecutionMode %96 ContractionOff
+               OpSource OpenCL_C 200000
+               OpName %__spirv_BuiltInWorkgroupId "__spirv_BuiltInWorkgroupId"
+               OpName %__spirv_BuiltInLocalInvocationId "__spirv_BuiltInLocalInvocationId"
+               OpName %__spirv_BuiltInGlobalInvocationId "__spirv_BuiltInGlobalInvocationId"
+               OpName %_throw_boundserror "_throw_boundserror"
+               OpName %_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE "_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE"
+               OpName %conversion "conversion"
+               OpName %L71 "L71"
+               OpName %L89 "L89"
+               OpName %L92 "L92"
+               OpName %L111 "L111"
+               OpName %L114 "L114"
+               OpName %L133 "L133"
+               OpName %L136 "L136"
+               OpName %L143 "L143"
+               OpName %newstruct2 "newstruct2"
+               OpName %newstruct5 "newstruct5"
+               OpName %newstruct10 "newstruct10"
+               OpName %unbox "unbox"
+               OpName %_not ".not"
+               OpName %unbox41 "unbox41"
+               OpName %unbox6 "unbox6"
+               OpName %_not2 ".not2"
+               OpName %unbox93 "unbox93"
+               OpName %unbox11 "unbox11"
+               OpName %_not4 ".not4"
+               OpName %unbox145 "unbox145"
+               OpDecorate %__spirv_BuiltInWorkgroupId LinkageAttributes "__spirv_BuiltInWorkgroupId" Import
+               OpDecorate %__spirv_BuiltInWorkgroupId Constant
+               OpDecorate %__spirv_BuiltInWorkgroupId BuiltIn WorkgroupId
+               OpDecorate %__spirv_BuiltInLocalInvocationId LinkageAttributes "__spirv_BuiltInLocalInvocationId" Import
+               OpDecorate %__spirv_BuiltInLocalInvocationId Constant
+               OpDecorate %__spirv_BuiltInLocalInvocationId BuiltIn LocalInvocationId
+               OpDecorate %__spirv_BuiltInGlobalInvocationId LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import
+               OpDecorate %__spirv_BuiltInGlobalInvocationId Constant
+               OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+               OpDecorate %_throw_boundserror LinkageAttributes "_throw_boundserror" Import
+               OpDecorate %_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE LinkageAttributes "_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE" Export
+               OpDecorate %21 FuncParamAttr ByVal
+               OpDecorate %23 FuncParamAttr ByVal
+               OpDecorate %24 FuncParamAttr ByVal
+               OpDecorate %newstruct2 Alignment 8
+               OpDecorate %newstruct5 Alignment 8
+               OpDecorate %newstruct10 Alignment 8
+               OpDecorate %97 FuncParamAttr ByVal
+               OpDecorate %99 FuncParamAttr ByVal
+               OpDecorate %100 FuncParamAttr ByVal
+      %ulong = OpTypeInt 64 0
+      %uchar = OpTypeInt 8 0
+       %uint = OpTypeInt 32 0
+    %ulong_1 = OpConstant %ulong 1
+   %ulong_10 = OpConstant %ulong 10
+ %ulong_9999 = OpConstant %ulong 9999
+    %ulong_0 = OpConstant %ulong 0
+     %uint_0 = OpConstant %uint 0
+     %uint_2 = OpConstant %uint 2
+    %v3ulong = OpTypeVector %ulong 3
+%_ptr_Input_v3ulong = OpTypePointer Input %v3ulong
+       %void = OpTypeVoid
+          %9 = OpTypeFunction %void
+%_ptr_CrossWorkgroup_uchar = OpTypePointer CrossWorkgroup %uchar
+%_arr_ulong_ulong_1 = OpTypeArray %ulong %ulong_1
+ %_struct_12 = OpTypeStruct %_ptr_CrossWorkgroup_uchar %ulong %_arr_ulong_ulong_1 %ulong
+ %_struct_11 = OpTypeStruct %_struct_12
+%_ptr_Function__struct_11 = OpTypePointer Function %_struct_11
+     %double = OpTypeFloat 64
+         %19 = OpTypeFunction %void %_ptr_Function__struct_11 %double %_ptr_Function__struct_11 %_ptr_Function__struct_11
+%_ptr_Function__arr_ulong_ulong_1 = OpTypePointer Function %_arr_ulong_ulong_1
+       %bool = OpTypeBool
+%_ptr_Function_ulong = OpTypePointer Function %ulong
+%_ptr_Function__struct_12 = OpTypePointer Function %_struct_12
+%_ptr_CrossWorkgroup_double = OpTypePointer CrossWorkgroup %double
+%_ptr_Function__ptr_CrossWorkgroup_double = OpTypePointer Function %_ptr_CrossWorkgroup_double
+%__spirv_BuiltInWorkgroupId = OpVariable %_ptr_Input_v3ulong Input
+%__spirv_BuiltInLocalInvocationId = OpVariable %_ptr_Input_v3ulong Input
+%__spirv_BuiltInGlobalInvocationId = OpVariable %_ptr_Input_v3ulong Input
+%_throw_boundserror = OpFunction %void DontInline %9
+               OpFunctionEnd
+%_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE = OpFunction %void None %19
+         %21 = OpFunctionParameter %_ptr_Function__struct_11
+         %22 = OpFunctionParameter %double
+         %23 = OpFunctionParameter %_ptr_Function__struct_11
+         %24 = OpFunctionParameter %_ptr_Function__struct_11
+ %conversion = OpLabel
+ %newstruct2 = OpVariable %_ptr_Function__arr_ulong_ulong_1 Function
+ %newstruct5 = OpVariable %_ptr_Function__arr_ulong_ulong_1 Function
+%newstruct10 = OpVariable %_ptr_Function__arr_ulong_ulong_1 Function
+         %38 = OpLoad %v3ulong %__spirv_BuiltInWorkgroupId Aligned 32
+         %39 = OpCompositeExtract %ulong %38 0
+         %40 = OpLoad %v3ulong %__spirv_BuiltInLocalInvocationId Aligned 32
+         %41 = OpCompositeExtract %ulong %40 0
+         %43 = OpShiftLeftLogical %ulong %39 %ulong_10
+         %44 = OpIAdd %ulong %43 %41
+         %47 = OpUGreaterThan %bool %44 %ulong_9999
+               OpBranchConditional %47 %L143 %L71
+        %L71 = OpLabel
+         %48 = OpLoad %v3ulong %__spirv_BuiltInGlobalInvocationId Aligned 32
+         %49 = OpCompositeExtract %ulong %48 0
+         %50 = OpIAdd %ulong %49 %ulong_1
+         %53 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %newstruct2 %ulong_0 %ulong_0
+               OpStore %53 %50 Aligned 8
+         %57 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %23 %ulong_0 %uint_0 %uint_2 %ulong_0
+      %unbox = OpLoad %ulong %57 Aligned 8
+         %59 = OpSGreaterThan %bool %unbox %ulong_0
+         %60 = OpSelect %ulong %59 %unbox %ulong_0
+       %_not = OpULessThan %bool %49 %60
+               OpBranchConditional %_not %L92 %L89
+        %L89 = OpLabel
+         %63 = OpInBoundsPtrAccessChain %_ptr_Function__struct_12 %23 %ulong_0 %uint_0
+         %64 = OpFunctionCall %void %_throw_boundserror
+               OpUnreachable
+        %L92 = OpLabel
+         %67 = OpBitcast %_ptr_Function__ptr_CrossWorkgroup_double %23
+    %unbox41 = OpLoad %_ptr_CrossWorkgroup_double %67 Aligned 8
+         %69 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_double %unbox41 %49
+         %70 = OpLoad %double %69 Aligned 8
+         %71 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %newstruct5 %ulong_0 %ulong_0
+               OpStore %71 %50 Aligned 8
+         %72 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %24 %ulong_0 %uint_0 %uint_2 %ulong_0
+     %unbox6 = OpLoad %ulong %72 Aligned 8
+         %74 = OpSGreaterThan %bool %unbox6 %ulong_0
+         %75 = OpSelect %ulong %74 %unbox6 %ulong_0
+      %_not2 = OpULessThan %bool %49 %75
+               OpBranchConditional %_not2 %L114 %L111
+       %L111 = OpLabel
+         %77 = OpInBoundsPtrAccessChain %_ptr_Function__struct_12 %24 %ulong_0 %uint_0
+         %78 = OpFunctionCall %void %_throw_boundserror
+               OpUnreachable
+       %L114 = OpLabel
+         %79 = OpBitcast %_ptr_Function__ptr_CrossWorkgroup_double %24
+    %unbox93 = OpLoad %_ptr_CrossWorkgroup_double %79 Aligned 8
+         %81 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_double %unbox93 %49
+         %82 = OpLoad %double %81 Aligned 8
+         %83 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %newstruct10 %ulong_0 %ulong_0
+               OpStore %83 %50 Aligned 8
+         %84 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %21 %ulong_0 %uint_0 %uint_2 %ulong_0
+    %unbox11 = OpLoad %ulong %84 Aligned 8
+         %86 = OpSGreaterThan %bool %unbox11 %ulong_0
+         %87 = OpSelect %ulong %86 %unbox11 %ulong_0
+      %_not4 = OpULessThan %bool %49 %87
+               OpBranchConditional %_not4 %L136 %L133
+       %L133 = OpLabel
+         %89 = OpInBoundsPtrAccessChain %_ptr_Function__struct_12 %21 %ulong_0 %uint_0
+         %90 = OpFunctionCall %void %_throw_boundserror
+               OpUnreachable
+       %L136 = OpLabel
+         %91 = OpFMul %double %70 %22
+         %92 = OpFAdd %double %91 %82
+         %93 = OpBitcast %_ptr_Function__ptr_CrossWorkgroup_double %21
+   %unbox145 = OpLoad %_ptr_CrossWorkgroup_double %93 Aligned 8
+         %95 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_double %unbox145 %49
+               OpStore %95 %92 Aligned 8
+               OpBranch %L143
+       %L143 = OpLabel
+               OpReturn
+               OpFunctionEnd
+         %96 = OpFunction %void None %19
+         %97 = OpFunctionParameter %_ptr_Function__struct_11
+         %98 = OpFunctionParameter %double
+         %99 = OpFunctionParameter %_ptr_Function__struct_11
+        %100 = OpFunctionParameter %_ptr_Function__struct_11
+        %101 = OpLabel
+        %102 = OpFunctionCall %void %_Z9gpu_daxpy16CompilerMetadataI10StaticSizeI8_10000__E12DynamicCheckvv7NDRangeILl1ES0_I5_10__ES0_I7_1024__EvvEE14oneDeviceArrayI7Float64Ll1ELl1EES4_S3_IS4_Ll1ELl1EES3_IS4_Ll1ELl1EE %97 %98 %99 %100
+               OpReturn
+               OpFunctionEnd
