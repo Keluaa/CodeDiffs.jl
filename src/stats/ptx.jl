@@ -37,6 +37,29 @@ function Base.:(==)(a::PTXStats, b::PTXStats)
 end
 
 
+"""
+    extract_stats(::Val{:ptx}, ptx_source, stats_opts)
+
+Extracts various statistics about the `ptx_source`.
+
+The PTX source isn't parsed, but regex expressions are used to analyze all instructions and declarations
+within the source.
+
+Declaration and memory (loads and stores) statistics are grouped by address space and type.
+All address spaces are supported.
+All [funcdamental PTX types](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html?highlight=global#fundamental-types) are supported.
+Usage of dynamic shared memory is detected.
+Vector variables account for 2, 4 or 8 variables of the base type.
+
+Register statistics (mainly `.param`) exclude external functions defined in `ptx_source`, but not
+calls within the main function to those external functions.
+
+!!! info
+
+    PTX uses virtual registers: therefore the compiler can declare 1000s of register variables, yet
+    it is only in the SASS code that registers are allocated physically.
+    Only use register information to monitor address space usage, not for estimating performance.
+"""
 function extract_stats(::Val{:ptx}, ptx_source, stats_opts)
     # Matches most PTX variable declarations, in any memory space (group "space"), with any
     # attributes (group "attributes"), and an optional array/parametric definition (group "array").
@@ -185,6 +208,19 @@ function Base.:(==)(a::SASSStats, b::SASSStats)
 end
 
 
+"""
+    extract_stats(::Val{:sass}, sass_source, stats_opts)
+
+Extracts various statistics about the `sass_source`.
+
+The SASS source isn't parsed, but regex expressions are used to analyze all instructions and declarations
+within the source.
+
+The following instructions are searched for:
+ - `BSYNC` counts as a workgroup synchronization
+ - `WARPSYNC` counts as a warp synchronization
+ - `CALL` counts as a function call
+"""
 function extract_stats(::Val{:sass}, sass_source, stats_opts)
     # The amount of registers per thread (I hope? This isn't documented anywhere...)
     m_reg = match(r"SHI_REGISTERS=(\d+)", sass_source)
@@ -221,6 +257,12 @@ end
 Base.:(==)(a::CUDAKernelStats, b::CUDAKernelStats) = a.ptx == b.ptx && a.sass == b.sass
 
 
+"""
+    extract_stats(::Val{:cuda_stats}, (ptx_source, sass_source), stats_opts)
+
+Combines the statistics of `ptx_source` and `sass_source` into one.
+See [`extract_stats(::Val{:ptx_stats}, ptx_source, stats_opts)`](@ref) and [`extract_stats(::Val{:sass_stats}, sass_source, stats_opts)`](@ref).
+"""
 function extract_stats(::Val{:cuda_stats}, (ptx_source, sass_source), stats_opts)
     ptx_stats = extract_stats(Val(:ptx), ptx_source, stats_opts)
     sass_stats = extract_stats(Val(:sass), sass_source, stats_opts)

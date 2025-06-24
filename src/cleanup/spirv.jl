@@ -3,10 +3,19 @@
 const SPIRV_FUNC_NAME_REGEX = r"\bOpEntryPoint\s+Kernel\s+%\d+\s+\""m * MANGLED_NAME_REGEX * r"\""m
 
 
+"""
+    cleanup_code(::Val{:spirv}, code, dbinfo, cleanup_opts)
+
+Cleanup SPIRV `code`.
+
+Accepted `cleanup_opts` and their default values:
+ - `metadata=false`: keep the meta operations around the main function's body
+ - `demangle=true`: demangle names within the code
+"""
 function cleanup_code(::Val{:spirv}, c, dbinfo, cleanup_opts)
     c = clean_function_name(SPIRV_FUNC_NAME_REGEX, c)
 
-    if get(cleanup_opts, :strip_meta, true)
+    if !get(cleanup_opts, :metadata, false)
         c = strip_spirv_meta_operations(c)
     end
 

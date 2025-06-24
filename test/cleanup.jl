@@ -329,7 +329,7 @@ end
     @testset "daxpy" begin
         spirv_sample = readchomp("./samples/daxpy.spirv")
         cleaned_spirv = CDC.cleanup_code(Val(:spirv), spirv_sample)
-        with_meta_spirv = CDC.cleanup_code(Val(:spirv), spirv_sample, true, (; strip_meta=false))
+        with_meta_spirv = CDC.cleanup_code(Val(:spirv), spirv_sample, true, (; metadata=true))
 
         println(TEST_IO, "\nCleaned SPIRV sample daxpy:")
         println(TEST_IO, cleaned_spirv)

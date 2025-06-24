@@ -16,9 +16,13 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "Cleanup" => "cleanup.md",
-        "Code stats" => "stats.md",
-        "Extensions" => "extensions.md",
+        "GPU Extensions" => "extensions.md",
+        "API" => [
+            "Main API" => "code_disp_and_diff.md",
+            "Cleanup" => "cleanup.md",
+            "Code stats" => "stats.md",
+            "Defining a new extension" => "new_extension.md",
+        ],
     ],
     doctest = can_doctest
 )

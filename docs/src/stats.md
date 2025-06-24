@@ -7,5 +7,3 @@ CurrentModule = CodeDiffs.Stats
 ```@docs
 extract_stats
 ```
-
-<!-- TODO -->
