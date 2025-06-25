@@ -217,6 +217,7 @@ end
         # Others
         @test !has_trailing_spaces(cleaned_ptx)
         @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
+        @test count('\t', cleaned_ptx) == 0  # no tabs
 
         # Make sure we didn't remove any instruction by mistake
         @test count(';', ptx_sample) == count(';', cleaned_ptx)
@@ -239,6 +240,7 @@ end
         @test !has_trailing_spaces(cleaned_ptx)
         @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
         @test !endswith(cleaned_ptx, r"\R")  # no trailing newlines
+        @test count('\t', cleaned_ptx) == 0  # no tabs
 
         # Make sure we didn't remove any instruction by mistake
         @test count(';', ptx_sample) == count(';', cleaned_ptx)
@@ -260,6 +262,7 @@ end
         @test !has_trailing_spaces(cleaned_ptx)
         @test count(r"\R{2,}", cleaned_ptx) == 0  # no empty lines
         @test !endswith(cleaned_ptx, r"\R")  # no trailing newlines
+        @test count('\t', cleaned_ptx) == 0  # no tabs
 
         # Make sure we didn't remove any instruction by mistake
         @test count(';', ptx_sample) == count(';', cleaned_ptx)
@@ -284,6 +287,7 @@ end
         # Others
         @test !has_trailing_spaces(cleaned_sass)
         @test !endswith(cleaned_sass, r"\R")  # no trailing newlines
+        @test count('\t', cleaned_sass) == 0  # no tabs
 
         # Location comments should be removed with `dbinfo=false`
         cleaned_sass_no_loc = CDC.cleanup_code(Val(:sass), sass_sample, false)
@@ -321,6 +325,7 @@ end
         @test !has_trailing_spaces(cleaned_gcn)
         @test count(r"\R{2,}", cleaned_gcn) == 0  # no empty lines
         @test !endswith(cleaned_gcn, r"\R")  # no trailing newlines
+        @test count('\t', cleaned_gcn) == 0  # no tabs
     end
 end
 
@@ -345,6 +350,7 @@ end
         @test !has_trailing_spaces(cleaned_spirv)
         @test count(r"\R{2,}", cleaned_spirv) == 0  # no empty lines
         @test !endswith(cleaned_spirv, r"\R")  # no trailing newlines
+        @test count('\t', cleaned_spirv) == 0  # no tabs
     end
 end
 
