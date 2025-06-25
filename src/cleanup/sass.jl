@@ -34,5 +34,5 @@ function cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
     c = replace(c, extra_patterns...)
 
     # SASS output uses 8 spaces as indent, but there is still some tabs in some places.
-    return replace(c, replace_tabs(8))    
+    return replace(c, replace_tabs(8))
 end
