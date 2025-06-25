@@ -68,6 +68,9 @@ function cleanup_code(::Val{:gcn}, c, dbinfo, cleanup_opts)
         r"\s*; -- Begin function.+$"m => "",
         extra_patterns...,
     )
+
+    # GCN doesn't have any instruction guards, so 4 spaces is enough.
+    c = replace(c, replace_tabs(4))
     return rstrip(c)  # remove trailing newlines
 end
 
@@ -81,7 +84,7 @@ function align_instruction_operand(column)
         m = match(operand_regex, c)
         isnothing(m) && return c
 
-        mnemonic_end     = m.offsets[1]
+        mnemonic_end = m.offsets[1]
 
         if all(isspace, m[2])
             # In case the operands are just trailing spaces, return only the mnemonic

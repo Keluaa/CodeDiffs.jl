@@ -31,5 +31,8 @@ function cleanup_code(::Val{:sass}, c, dbinfo, cleanup_opts)
         push!(extra_patterns, r"; Location .+\R" => "")  # Remove location comments
     end
 
-    return replace(c, extra_patterns...)
+    c = replace(c, extra_patterns...)
+
+    # SASS output uses 8 spaces as indent, but there is still some tabs in some places.
+    return replace(c, replace_tabs(8))    
 end

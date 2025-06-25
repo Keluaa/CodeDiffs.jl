@@ -45,7 +45,7 @@ function cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
         push!(extra_patterns, align_instruction_predicates(align_preds))
     end
 
-    return replace(c,
+    c = replace(c,
         # Parameter names are always local to a function, so this should never create ambiguous code.
         trim_parameter_names(),
         # Generic match to cleanup external functions as well
@@ -66,6 +66,10 @@ function cleanup_code(::Val{:ptx}, c, dbinfo, cleanup_opts)
         r"\R{2,}" => "\n",
         extra_patterns...
     )
+
+    # Replace tabs by 8 spaces, as it gives enough space for instruction guards.
+    # Some patterns may depend on tabs, so we must replace them last.
+    return replace(c, replace_tabs(8))
 end
 
 
