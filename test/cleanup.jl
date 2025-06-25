@@ -200,6 +200,8 @@ end
         @test is_removed("// -- Begin function", ptx_sample, cleaned_ptx)
         @test is_removed("// -- End function", ptx_sample, cleaned_ptx)
         @test is_removed(r"// %L\d+", ptx_sample, cleaned_ptx)
+        @test is_removed("// shmem has been demoted", ptx_sample, cleaned_ptx)
+        @test is_removed("// demoted variable", ptx_sample, cleaned_ptx)
 
         # Demangling
         @test is_removed("14gpu_reverse_ka", ptx_sample, cleaned_ptx)
@@ -355,7 +357,8 @@ end
 end
 
 
-# TODO
-@testset "AGX" begin end
+@testset "AGX" begin
+    # TODO
+end
 
 end
