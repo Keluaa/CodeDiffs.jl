@@ -102,6 +102,107 @@ end
 end
 
 
+@testset "AST" begin
+    @testset "Compact if to ternary" begin
+        e = :(a ? b : c)  # this is printed as a `if` statement by default
+        e = MacroTools.prettify(e)
+
+        cleaned_e = CDC.cleanup_code(Val(:ast), e)
+        @test cleaned_e == "a ? b : c"
+
+        @testset "Inline ternary" begin
+            e = :((a ? b : c) * 42)  # this is printed as a `if` statement by default
+            e = MacroTools.prettify(e)
+
+            cleaned_e = CDC.cleanup_code(Val(:ast), e)
+            @test cleaned_e == "(a ? b : c) * 42"
+        end
+
+        @testset "Nested ifs" begin
+            e = quote
+                if a
+                    if b
+                        c
+                    else
+                        d
+                    end
+                else
+                    e
+                end
+            end
+            e = MacroTools.prettify(e)
+
+            e_str = sprint(print, e)
+            cleaned_e = CDC.cleanup_code(Val(:ast), e)
+
+            @test count("if", cleaned_e) == 1
+            @test count("?",  cleaned_e) == 1
+
+            # Others
+            @test !has_trailing_spaces(cleaned_e)
+            @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+            @test MacroTools.prettify(Meta.parse(cleaned_e)) == e
+        end
+    end
+
+    @testset "Unnecessary indents" begin
+        e = quote
+            @simd :ivdep for i in 1:100
+                f(i)
+            end
+        end
+        e = MacroTools.prettify(e)
+
+        e_str = sprint(print, e)
+        cleaned_e = CDC.cleanup_code(Val(:ast), e)
+
+        @test is_removed("    "^2, e_str, cleaned_e)
+        @test count("    ", cleaned_e) == 1
+
+        # Others
+        @test !has_trailing_spaces(cleaned_e)
+        @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+        @test MacroTools.prettify(Meta.parse(cleaned_e)) == e
+    end
+
+    @testset "Newlines" begin
+        e = Meta.parse(read(@__FILE__(), String))
+        e = MacroTools.prettify(e)
+
+        e_str = sprint(print, e)
+        cleaned_e = CDC.cleanup_code(Val(:ast), e)
+
+        @test count(r"\R{2,}", e_str) == 0
+        @test count(r"\R{2,}", cleaned_e) > 0
+
+        # Others
+        @test !has_trailing_spaces(cleaned_e)
+        @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+        @test MacroTools.prettify(Meta.parse(cleaned_e)) == e
+    end
+
+    @testset "One liners" begin
+        e = quote
+            struct Bla end
+            mutable struct Ble end
+            struct Bli{A <: Unsigned} end
+        end
+        e = MacroTools.prettify(e)
+
+        e_str = sprint(print, e)
+        cleaned_e = CDC.cleanup_code(Val(:ast), e)
+
+        @test count(r"\R", e_str) == 7
+        @test count(r"\R", cleaned_e) == 2
+
+        # Others
+        @test !has_trailing_spaces(cleaned_e)
+        @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+        @test MacroTools.prettify(Meta.parse("begin\n" * cleaned_e * "\nend")) == e
+    end
+end
+
+
 @testset "Typed IR" begin
     @testset "Inline LLVM-IR" begin
         tuple_gref = GlobalRef(Core, :tuple)

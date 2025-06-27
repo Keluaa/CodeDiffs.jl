@@ -19,7 +19,7 @@ code_highlighter(::Val{:native}) = InteractiveUtils.print_native
 code_highlighter(::Val{:llvm}) = InteractiveUtils.print_llvm
 
 
-highlight_ast(io::IO, ast::Expr) = highlight_ast(io, sprint(Base.show, ast))
+highlight_ast(io::IO, ast::Expr) = highlight_ast(io, sprint(print, ast))
 
 function highlight_ast(io::IO, ast::AbstractString)
     if !haskey(Base.loaded_modules, OhMYREPL_PKG_ID)
@@ -32,6 +32,7 @@ function highlight_ast(io::IO, ast::AbstractString)
         # Markdown adds two spaces in front of every line
         ast_md_str = replace(ast_md_str[3:end], "\n  " => '\n')
     end
+    ast_md_str = chomp(ast_md_str)
 
     print(io, ast_md_str)
 end

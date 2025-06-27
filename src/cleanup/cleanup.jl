@@ -46,6 +46,7 @@ function replace_tabs(tab_width)
 end
 
 
+include("ast.jl")
 include("julia_names.jl")
 include("typed_ir.jl")
 include("llvm_ir.jl")
