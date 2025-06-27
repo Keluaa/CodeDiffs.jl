@@ -332,7 +332,7 @@ For code types with no option to control the verbosity of the output, `dbinfo` i
 ignored.
 
 ```julia
-# Default comparison
+# Default display
 @code_for type=:native f()
 
 # Without debuginfo

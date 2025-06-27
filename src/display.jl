@@ -231,7 +231,9 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
         end
     end
 
-    DeepDiffs.visitall(diff) do idx, state, last
+    is_first = true
+    DeepDiffs.visitall(diff) do idx, state, _
+        !is_first && println(io)
         if state === :removed
             print_line_num(:left)
             print_columns(io, column_width, xlines[idx], sep_removed, "", empty_column, tab)
@@ -249,7 +251,7 @@ function side_by_side_diff(io::IO, diff::CodeDiff; tab_width=4, width=nothing, l
             print_columns(io, column_width, xlines[idx], sep_same, xlines[idx], empty_column, tab)
             print_line_num(:right)
         end
-        !last && println(io)
+        is_first = false
     end
 end
 

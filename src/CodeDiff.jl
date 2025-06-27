@@ -61,7 +61,9 @@ Base.show(io::IO, ::MIME"text/plain", diff::CodeDiff) = side_by_side_diff(io, di
 function Base.show(io::IO, diff::CodeDiff)
     xlines = split(diff.before, '\n')
     ylines = split(diff.after, '\n')
-    DeepDiffs.visitall(diff) do idx, state, last
+    is_first = true
+    DeepDiffs.visitall(diff) do idx, state, _
+        !is_first && println(io)
         if state === :removed
             printstyled(io, "- ", xlines[idx], color=:red)
         elseif state === :added
@@ -75,7 +77,7 @@ function Base.show(io::IO, diff::CodeDiff)
         else
             print(io, "  ", xlines[idx])
         end
-        !last && println(io)
+        is_first = false
     end
 end
 
