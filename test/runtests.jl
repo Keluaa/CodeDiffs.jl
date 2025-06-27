@@ -4,6 +4,7 @@ using CodeDiffs
 using DeepDiffs
 using InteractiveUtils
 using KernelAbstractions
+using MacroTools
 using ReferenceTests
 using Revise
 using Test
@@ -150,11 +151,11 @@ end
     include("stats.jl")
 
     @testset "AST" begin
-        diff = CodeDiffs.code_diff((:(1+2),), (:(1+2),); type=:ast, color=false, prettify=false, lines=false, alias=false)
+        diff = CodeDiffs.code_diff((:(1+2),), (:(1+2),); type=:ast, color=false, prettify=false, lines=false, alias=false, cleanup=false)
         @test CodeDiffs.issame(diff)
-        @test diff.before == diff.highlighted_before == "quote\n    1 + 2\nend"
+        @test diff.before == diff.highlighted_before == "begin\n    1 + 2\nend"
 
-        diff = CodeDiffs.code_diff((:(1+2),), (:(1+3),); type=:ast, color=false, prettify=false, lines=false, alias=false)
+        diff = CodeDiffs.code_diff((:(1+2),), (:(1+3),); type=:ast, color=false, prettify=false, lines=false, alias=false, cleanup=false)
         @test !CodeDiffs.issame(diff)
         @test length(DeepDiffs.added(diff)) == length(DeepDiffs.removed(diff)) == 1
 
@@ -162,7 +163,7 @@ end
             $(LineNumberNode(42, :file))
             1+2
         end
-        diff = CodeDiffs.code_diff((e,), (:(1+2),); type=:ast, color=false, prettify=false, lines=true, alias=false)
+        diff = CodeDiffs.code_diff((e,), (:(1+2),); type=:ast, color=false, prettify=false, lines=true, alias=false, cleanup=false)
         @test !CodeDiffs.issame(diff)
         @test occursin("#= file:42 =#", diff.before)
         diff = CodeDiffs.code_diff((e,), (:(1+2),); type=:ast, color=false, prettify=true, lines=false, alias=false)
@@ -241,7 +242,6 @@ end
         @test length(DeepDiffs.changed(diff)) == 4
 
         check_diff_display_order(diff, [
-            "quote"    => "quote",
             nothing    => "println(\"B\")",
             "1 + 2"    => "1 + 3",
             "f(a, b)"  => "f(a, d)",
@@ -250,7 +250,6 @@ end
             nothing    => "c = b - d",
             nothing    => "h(x, y)",
             "\"test\"" => "\"test2\"",
-            "end"      => "end"
         ])
     end
 
@@ -307,7 +306,9 @@ end
 
         @testset "f1" begin
             eval_for_revise("""
-            f() = 1
+            function f()
+                return 1
+            end
             """)
             test_cmp_display(f, Tuple{}, f, Tuple{})
         end
@@ -351,14 +352,12 @@ end
             diff = CodeDiffs.code_diff((A,), (B,); type=:ast, color=false)
 
             check_diff_display_order(diff, [
-                "quote"    => "quote",
                 nothing    => "println(\"B\")",
                 "1 + 2"    => "1 + 3",
                 "f(a, b)"  => "f(a, d)",
                 "g(c, d)"  => "g(c, b)",
                 nothing    => "h(x, y)",
                 "\"test\"" => "\"test2\"",
-                "end"      => "end"
             ])
 
             @test_reference "references/a_vs_b_PRINT.jl_ast" display_str(diff; mime=nothing, color=false)
