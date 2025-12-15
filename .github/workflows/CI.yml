@@ -44,7 +44,7 @@ jobs:
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: "tests-output-jl-${{ matrix.version }}-${{ matrix.os }}-${{ matrix.arch }}"
