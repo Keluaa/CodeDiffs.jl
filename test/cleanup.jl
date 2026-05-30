@@ -200,6 +200,56 @@ end
         @test !endswith(cleaned_e, r"\R")  # no trailing newlines
         @test MacroTools.prettify(Meta.parse("begin\n" * cleaned_e * "\nend")) == e
     end
+
+    @testset "Multiline expressions" begin
+        e = quote
+            function bla(a, b, c; d=3, e=(123, 456, [1234567, 4343, "BOUH"]), efefefe=5) where {A, B <: C{DEF, HIJ, KLM}}
+                a = this_is_a_function_call(
+                    "this is an argument", "this is the second argument", "this is the third argument";
+                    this_is_a_kwarg=and_that_is_its_default_value,
+                    this_is_the_next_kwarg=and_its_default_value(
+                        is_the_result, of_a_function_call, which_is_quite_long; dont_you_think="??"
+                    )
+                )
+                this_is_a_function_definition(with_not_one, not_two, but_three_arguments="!!") =
+                    and_a_simple_function_body(with_a_small_function_call)
+                this_function_call(;
+                    only_uses_kwargs=and_nothing_else, so_we_expect_the=";",
+                    to_be_printed=immediately_after_the("(")
+                )
+            end
+
+            function function_with(a_lot_of::Type{Parameters <: Within}) where {
+                TheWhereClause <: Just{ToTestThings, AndMakeSure},
+                TheyAreCorrectly, Printed <: OnMultiple{
+                    Lines <: AndWell{Indented}, AndRecursively, SuchThat <: ItIsAlways{QuiteReadable}
+                }
+            }
+                and = this_is = its = body
+            end
+
+            a = (;)
+            b = (; c)
+            d = (; e=f(g; h=i, j), k=l, m="qiqfmjziprejgqioezjqgmozejgqoiemj")
+            n = (;
+                o=(; p=[efefefefef, efefe, efefefe, efef, ef], r="fefefefef,efe,fe,feofslefpe", s=efefe),
+                t=("ZAZDAZD", "FEZFEGg", Union{String, Vector{Any}}),
+                u=1-2*3+4-6^7/8%9*0, v="fefefefefefefefefefefefe", w=[
+                    "1234567890", [1, 2, 3, 4, 5, 6, 7, 8, 9], 12345678901234567890
+                ]
+            )
+            (; aaaaaaaaaaaaaa, ooooooooooooooooooooooooo, pppppppppppppppppppp, qqqqqqqqqqqqqqqq) = obj
+        end
+        e = MacroTools.prettify(e)
+
+        @testset "width=$line_length" for line_length in (100, 50, 0)
+            cleaned_e = CDC.cleanup_code(Val(:ast), e, false, (; line_length))
+
+            @test !has_trailing_spaces(cleaned_e)
+            @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+            @test MacroTools.prettify(Meta.parse("begin\n" * cleaned_e * "\nend")) == e
+        end
+    end
 end
 
 
