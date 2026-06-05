@@ -202,7 +202,17 @@ end
     end
 
     @testset "Multiline expressions" begin
-        e = quote
+        function test_multiline_expr(e::Expr)
+            @testset "width=$line_length" for line_length in (100, 50, 0)
+                cleaned_e = CDC.cleanup_code(Val(:ast), e, false, (; line_length))
+
+                @test !has_trailing_spaces(cleaned_e)
+                @test !endswith(cleaned_e, r"\R")  # no trailing newlines
+                @test MacroTools.prettify(Meta.parse("begin\n" * cleaned_e * "\nend")) == e
+            end
+        end
+
+        e1 = quote
             function bla(a, b, c; d=3, e=(123, 456, [1234567, 4343, "BOUH"]), efefefe=5) where {A, B <: C{DEF, HIJ, KLM}}
                 a = this_is_a_function_call(
                     "this is an argument", "this is the second argument", "this is the third argument";
@@ -239,16 +249,47 @@ end
                 ]
             )
             (; aaaaaaaaaaaaaa, ooooooooooooooooooooooooo, pppppppppppppppppppp, qqqqqqqqqqqqqqqq) = obj
+            x = ()
+            y = ("bla",)
+            z = ("bla", "ble", "bli")
         end
-        e = MacroTools.prettify(e)
+        e1 = MacroTools.prettify(e1)
+        test_multiline_expr(e1)
 
-        @testset "width=$line_length" for line_length in (100, 50, 0)
-            cleaned_e = CDC.cleanup_code(Val(:ast), e, false, (; line_length))
-
-            @test !has_trailing_spaces(cleaned_e)
-            @test !endswith(cleaned_e, r"\R")  # no trailing newlines
-            @test MacroTools.prettify(Meta.parse("begin\n" * cleaned_e * "\nend")) == e
+        e2 = quote
+            Base.@propagate_inbounds function k_mag_tw_tx_03104(domain::DomainBounds, x)
+                ok, ideal_domain = Tilings.check_domain_fit(
+                    Tilings.NoTiling{TileAxes}(WaveFusion.Axis[Axes.Y, Axes.X]), domain
+                )
+                if !ok
+                    error(
+                        "the domain cannot be applied to the tiling along the ", "Axes.Y",
+                        " and ", "Axes.Y", " axes.",
+                        if isnothing(ideal_domain)
+                            ("\nUnknown required axes lengths",)
+                        else
+                            ("\nIdeal axes lengths: ", ideal_domain.layers, ", ", ideal_domain.elements)
+                        end...
+                    )
+                end
+                domain_strides = strides(domain)
+                domain_info = (;
+                    Y = (UnitRange{Int64})(axes(domain, Axes.Y)),
+                    X = (UnitRange{Int64})(axes(domain, Axes.X)),
+                    stride_Y = (Int64)(domain_strides[Axes.Y]),
+                    tile_Y_count₁ = (Int64)(tile_domain_size₁.layers),
+                    tile_bb_X₁ = (Int64)(tile_bb₁.elements),
+                    tile_bb_Y₁ = (Int64)(tile_bb₁.layers),
+                    tile_X_count₁ = (Int64)(tile_domain_size₁.elements)
+                )
+                if typemin(Int64) ≥ first(domain)
+                    error("oopsie", Int64, ")")
+                end
+                k_mag_tw_tx_03104((WaveFusion.CodeGen.KernelImpl)(), domain_info, x)
+            end
         end
+        e2 = MacroTools.prettify(e2)
+        test_multiline_expr(e2)
     end
 end
 
