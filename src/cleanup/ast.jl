@@ -224,7 +224,7 @@ function Base.show_unquoted(io::IO, ex::MaybeMultiline, indent::Int, prec::Int, 
     elseif head in keys(Base.expr_parens)
         # Tuple, vect, etc...
         items = ex.expr.args
-        
+
         op, cl = Base.expr_parens[head]
         print(io, op)
         line_offset += 1
@@ -242,6 +242,10 @@ function Base.show_unquoted(io::IO, ex::MaybeMultiline, indent::Int, prec::Int, 
             io, items, ',', indent, ex.line_length, line_offset;
             kw=true, quote_level, add_space_before_first_item
         )
+        if head === :tuple && length(items) == 1
+            # Tuples with only 1 item must have a comma after the item
+            print(io, ',')
+        end
         has_newlines && print(io, '\n', " "^indent)
         print(io, cl)
 
