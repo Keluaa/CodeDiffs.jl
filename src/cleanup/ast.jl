@@ -245,7 +245,7 @@ function Base.show_unquoted(io::IO, ex::MaybeMultiline, indent::Int, prec::Int, 
         has_newlines && print(io, '\n', " "^indent)
         print(io, cl)
 
-    elseif head === :call
+    elseif head in (:call, :calldecl)
         # Function call or definition
         func_head = ex.expr.args[1]
         func_args = @view(ex.expr.args[2:end])
@@ -313,6 +313,9 @@ function replace_expr_for_printing(expr::Expr, max_line_length)
                 func_call = func_call.args[1]
             end
             if func_call isa MaybeMultiline
+                # Edge-case: `Base.show_unquoted` will try to cast `func_call` to an `Expr`, to
+                # transform it into a `:calldecl`. We avoid this by transforming it here.
+                func_call.expr.head = :calldecl
                 # We want to indent function arguments at the same level as the function body
                 func_call.indent_offset = -Base.indent_width
             end
@@ -332,7 +335,7 @@ function replace_expr_for_printing(expr::Expr, max_line_length)
             return e
         end
 
-        if Base.is_expr(e, :call) && length(e.args) > 1 && !Base.isoperator(e.args[1])
+        if Base.is_expr(e, :call) && length(e.args) > 1 && !(e.args[1] isa Symbol && Base.isoperator(e.args[1]))
             # Function call with arguments, but not for an arithmetic operation
             return MaybeMultiline(e, max_line_length)
         end
