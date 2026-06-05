@@ -449,8 +449,9 @@ function add_newlines_between_blocks(str::AbstractString)
     # Match only if the previous line has the same indent as the current one, and the current line
     # starts with any of those keywords. Keywords can be preceded by macros: this allows to match
     # blocks like `@testset` or `@threads`. We also ignore lines ending with `end`, to allow tight
-    # packing of one liners.
-    start_block_regex = r"^(?<prev_line>(?<prev_indent> *)\S.+\R)(?<this_line>\g{prev_indent}(@.+)?(baremodule|begin|do|for|function|if|let|macro|module|mutable|public|quote|struct|try|while))\b(?!.*end$)"m
+    # packing of one liners. We do not match if the previous line ends with ',' or ';', as it could
+    # be a block in an argument list (e.g. an `if` condition within a function call).
+    start_block_regex = r"^(?<prev_line>(?<prev_indent> *)\S(?:.*[^,;])?\R)(?<this_line>\g{prev_indent}(@.+)?(baremodule|begin|do|for|function|if|let|macro|module|mutable|public|quote|struct|try|while))\b(?!.*end$)"m
 
     # Match only if the next line has the same indent as the current one, and the current line
     # is the end of a block.
